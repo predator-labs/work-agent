@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# work-agent — Personal work automation agent
+# Usage: work-agent [command] [args...]
+
+AGENT_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")")/.." && pwd)"
+
+# Activate virtual environment
+source "$AGENT_DIR/.venv/bin/activate"
+cd "$AGENT_DIR"
+
+if [ $# -eq 0 ]; then
+    # No args — start the server
+    echo "Starting work-agent server at http://127.0.0.1:8000"
+    exec uvicorn server:app --host 127.0.0.1 --port 8000
+else
+    # Run CLI command
+    exec python agent.py "$@"
+fi
