@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>work-agent — Predator Labs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #fffef9;
+    --text: #111;
+    --muted: #666;
+    --border: #ddd;
+    --shadow: #ccc;
+    --accent: #111;
+    --card-bg: #fff;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* Animations */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0) rotate(var(--rot, 0deg)); }
+    50% { transform: translateY(-8px) rotate(var(--rot, 0deg)); }
+  }
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(var(--rot, 0deg)); }
+    25% { transform: rotate(calc(var(--rot, 0deg) + 2deg)); }
+    75% { transform: rotate(calc(var(--rot, 0deg) - 2deg)); }
+  }
+  @keyframes dash {
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes slideRight {
+    from { opacity: 0; transform: translateX(-40px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes typewriter {
+    from { width: 0; }
+    to { width: 100%; }
+  }
+  @keyframes blink {
+    50% { border-color: transparent; }
+  }
+  @keyframes waveHand {
+    0%, 100% { transform: rotate(0deg); }
+    20% { transform: rotate(14deg); }
+    40% { transform: rotate(-8deg); }
+    60% { transform: rotate(14deg); }
+    80% { transform: rotate(-4deg); }
+  }
+
+  .animate { opacity: 0; }
+  .animate.visible { animation: fadeUp 0.7s ease forwards; }
+  .animate-delay-1 { animation-delay: 0.1s !important; }
+  .animate-delay-2 { animation-delay: 0.2s !important; }
+  .animate-delay-3 { animation-delay: 0.3s !important; }
+  .animate-delay-4 { animation-delay: 0.4s !important; }
+  .animate-delay-5 { animation-delay: 0.5s !important; }
+
+  /* Nav */
+  nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+    animation: fadeIn 0.5s ease;
+  }
+  .nav-logo {
+    font-weight: 900;
+    font-size: 18px;
+    letter-spacing: -1px;
+  }
+  .nav-logo span {
+    font-family: 'Caveat', cursive;
+    font-weight: 400;
+    font-size: 14px;
+    color: var(--muted);
+    margin-left: 8px;
+  }
+  .nav-links {
+    display: flex;
+    gap: 24px;
+    list-style: none;
+  }
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--text); }
+  .nav-github {
+    background: var(--accent);
+    color: #fff !important;
+    padding: 6px 16px;
+    border-radius: 6px;
+    box-shadow: 3px 3px 0 var(--shadow);
+    transition: all 0.2s;
+  }
+  .nav-github:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0 var(--shadow);
+  }
+
+  /* Hero */
+  .hero {
+    text-align: center;
+    padding: 80px 40px 60px;
+    max-width: 900px;
+    margin: 0 auto;
+    position: relative;
+  }
+  .hero-badge {
+    font-family: 'Caveat', cursive;
+    font-size: 18px;
+    color: var(--muted);
+    animation: fadeIn 0.6s ease;
+  }
+  .hero h1 {
+    font-size: clamp(48px, 8vw, 80px);
+    font-weight: 900;
+    letter-spacing: -3px;
+    line-height: 1;
+    margin: 12px 0 0;
+    text-decoration: underline;
+    text-decoration-style: wavy;
+    text-decoration-color: #ddd;
+    text-underline-offset: 10px;
+    animation: fadeUp 0.7s ease;
+  }
+  .hero-tagline {
+    font-size: 20px;
+    color: var(--muted);
+    margin-top: 20px;
+    font-style: italic;
+    animation: fadeUp 0.7s ease 0.15s both;
+  }
+  .hero-tags {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 28px;
+    animation: fadeUp 0.7s ease 0.3s both;
+  }
+  .tag {
+    background: var(--accent);
+    color: #fff;
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 3px 3px 0 var(--shadow);
+    transition: all 0.3s ease;
+    cursor: default;
+    animation: float 3s ease-in-out infinite;
+  }
+  .tag:nth-child(1) { --rot: -2deg; animation-delay: 0s; }
+  .tag:nth-child(2) { --rot: 1deg; animation-delay: 0.5s; }
+  .tag:nth-child(3) { --rot: -1deg; animation-delay: 1s; }
+  .tag:nth-child(4) { --rot: 1.5deg; animation-delay: 1.5s; }
+  .tag:nth-child(5) { --rot: -0.5deg; animation-delay: 0.3s; }
+  .tag:hover {
+    transform: translateY(-4px) rotate(0deg) !important;
+    box-shadow: 5px 5px 0 var(--shadow);
+  }
+
+  /* Install */
+  .install-section {
+    text-align: center;
+    margin: 40px auto 0;
+    animation: fadeUp 0.7s ease 0.45s both;
+  }
+  .install-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    border: 2px dashed var(--border);
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 14px;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .install-box:hover {
+    border-color: var(--accent);
+    box-shadow: 4px 4px 0 var(--shadow);
+    transform: translate(-2px, -2px);
+  }
+  .install-box .copy-icon {
+    font-size: 16px;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+  }
+  .install-box:hover .copy-icon { opacity: 1; }
+  .install-box .tooltip {
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: 'Inter', sans-serif;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .install-box.copied .tooltip { opacity: 1; }
+
+  /* Features */
+  .features {
+    max-width: 1100px;
+    margin: 80px auto 0;
+    padding: 0 40px;
+  }
+  .features-header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .features-header h2 {
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: -2px;
+  }
+  .features-header p {
+    color: var(--muted);
+    margin-top: 8px;
+    font-family: 'Caveat', cursive;
+    font-size: 20px;
+  }
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+  }
+  .feature-card {
+    background: var(--card-bg);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    transition: all 0.3s ease;
+    position: relative;
+  }
+  .feature-card:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: 6px 6px 0 var(--shadow);
+    border-color: var(--accent);
+  }
+  .feature-icon {
+    font-size: 28px;
+    margin-bottom: 12px;
+    display: inline-block;
+    animation: float 4s ease-in-out infinite;
+  }
+  .feature-card:nth-child(1) .feature-icon { --rot: -1deg; animation-delay: 0s; }
+  .feature-card:nth-child(2) .feature-icon { --rot: 1deg; animation-delay: 0.3s; }
+  .feature-card:nth-child(3) .feature-icon { --rot: -0.5deg; animation-delay: 0.6s; }
+  .feature-card:nth-child(4) .feature-icon { --rot: 0.5deg; animation-delay: 0.9s; }
+  .feature-card:nth-child(5) .feature-icon { --rot: -1deg; animation-delay: 1.2s; }
+  .feature-card:nth-child(6) .feature-icon { --rot: 1deg; animation-delay: 1.5s; }
+  .feature-card h3 {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+  }
+  .feature-card p {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* How it works */
+  .how-it-works {
+    max-width: 800px;
+    margin: 100px auto 0;
+    padding: 0 40px;
+  }
+  .how-it-works h2 {
+    text-align: center;
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: -2px;
+    margin-bottom: 48px;
+  }
+  .step {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 40px;
+    align-items: flex-start;
+  }
+  .step-number {
+    background: var(--accent);
+    color: #fff;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 18px;
+    flex-shrink: 0;
+    box-shadow: 3px 3px 0 var(--shadow);
+  }
+  .step-content h3 {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .step-content p {
+    font-size: 14px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .step-code {
+    background: #f5f5f0;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    margin-top: 10px;
+    overflow-x: auto;
+    box-shadow: 3px 3px 0 #eee;
+  }
+
+  /* Commands */
+  .commands {
+    max-width: 900px;
+    margin: 100px auto 0;
+    padding: 0 40px;
+  }
+  .commands h2 {
+    text-align: center;
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: -2px;
+    margin-bottom: 12px;
+  }
+  .commands .subtitle {
+    text-align: center;
+    color: var(--muted);
+    font-family: 'Caveat', cursive;
+    font-size: 20px;
+    margin-bottom: 40px;
+  }
+  .command-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  .command-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    background: #fff;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    transition: all 0.2s;
+  }
+  .command-item:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 var(--shadow);
+    border-color: var(--accent);
+  }
+  .command-item code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .command-item span {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* Architecture */
+  .architecture {
+    max-width: 700px;
+    margin: 100px auto 0;
+    padding: 0 40px;
+    text-align: center;
+  }
+  .architecture h2 {
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: -2px;
+    margin-bottom: 32px;
+  }
+  .arch-diagram {
+    background: #fff;
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 40px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 14px;
+    line-height: 2;
+    box-shadow: 6px 6px 0 #eee;
+  }
+  .arch-row {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 8px 0;
+  }
+  .arch-box {
+    background: var(--accent);
+    color: #fff;
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 2px 2px 0 var(--shadow);
+  }
+  .arch-box.outline {
+    background: transparent;
+    color: var(--text);
+    border: 1.5px solid var(--border);
+    box-shadow: 2px 2px 0 #eee;
+  }
+  .arch-arrow {
+    font-family: 'Caveat', cursive;
+    font-size: 20px;
+    color: var(--muted);
+  }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 80px 40px 40px;
+    margin-top: 80px;
+    border-top: 1.5px dashed var(--border);
+  }
+  footer .logo {
+    font-weight: 900;
+    font-size: 24px;
+    letter-spacing: -1px;
+  }
+  footer .by {
+    font-family: 'Caveat', cursive;
+    font-size: 18px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  footer .links {
+    margin-top: 16px;
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+  }
+  footer .links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.2s;
+  }
+  footer .links a:hover { color: var(--text); }
+  footer .copy {
+    font-size: 12px;
+    color: #bbb;
+    margin-top: 24px;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    nav { padding: 16px 20px; }
+    .nav-links { display: none; }
+    .hero { padding: 60px 20px 40px; }
+    .hero h1 { font-size: 44px; letter-spacing: -2px; }
+    .features, .how-it-works, .commands, .architecture { padding: 0 20px; }
+    .features-grid { grid-template-columns: 1fr; }
+    .command-grid { grid-template-columns: 1fr; }
+    .step { flex-direction: column; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-logo">work-agent <span>by predator labs</span></div>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#how-it-works">Setup</a></li>
+    <li><a href="#commands">Commands</a></li>
+    <li><a href="https://github.com/predator-labs/work-agent" class="nav-github">GitHub</a></li>
+  </ul>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-badge">predator labs presents</div>
+  <h1>work-agent</h1>
+  <p class="hero-tagline">automate the boring engineering stuff</p>
+  <div class="hero-tags">
+    <span class="tag">Slack Triage</span>
+    <span class="tag">PR Review</span>
+    <span class="tag">Issue Handler</span>
+    <span class="tag">Daily Planner</span>
+    <span class="tag">Push Notifications</span>
+  </div>
+  <div class="install-section">
+    <div class="install-box" onclick="copyInstall(this)">
+      <span class="tooltip">Copied!</span>
+      <code>curl -fsSL https://raw.githubusercontent.com/predator-labs/work-agent/main/install.sh | bash</code>
+      <span class="copy-icon">📋</span>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features" id="features">
+  <div class="features-header">
+    <h2 class="animate">What it does</h2>
+    <p class="animate animate-delay-1">everything you hate doing, automated</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card animate animate-delay-1">
+      <div class="feature-icon">💬</div>
+      <h3>Slack Triage</h3>
+      <p>Reads your DMs, @mentions, and AI/ML topics across all channels. Drafts replies for your approval. Routes PR reviews and issues automatically.</p>
+    </div>
+    <div class="feature-card animate animate-delay-2">
+      <div class="feature-icon">🔍</div>
+      <h3>PR Review</h3>
+      <p>Critical-only code review on Bitbucket. No nitpicking, no style comments. Approves clean PRs silently. Detects re-reviews and resolved issues.</p>
+    </div>
+    <div class="feature-card animate animate-delay-3">
+      <div class="feature-icon">🛠️</div>
+      <h3>Issue Handler</h3>
+      <p>Investigates bugs (RCA), creates Jira tickets, brainstorms, writes plans, implements, tests, and creates PRs. 4-phase workflow with approval gates.</p>
+    </div>
+    <div class="feature-card animate animate-delay-4">
+      <div class="feature-icon">📋</div>
+      <h3>Daily Planner</h3>
+      <p>Morning planning with Todoist tasks from Jira + Slack + Bitbucket. Activity logging in Obsidian. End-of-day summaries. P1-P4 prioritization.</p>
+    </div>
+    <div class="feature-card animate animate-delay-5">
+      <div class="feature-icon">📱</div>
+      <h3>Push Notifications</h3>
+      <p>ntfy.sh pushes to your phone for urgent items and approval requests. Approve actions from anywhere with a simple API call.</p>
+    </div>
+    <div class="feature-card animate animate-delay-5">
+      <div class="feature-icon">⚡</div>
+      <h3>Background Dispatch</h3>
+      <p>Long tasks run in background with --bg flag. macOS sleep prevention via caffeinate. Check progress anytime with status command.</p>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section class="how-it-works" id="how-it-works">
+  <h2 class="animate">Get running in 60 seconds</h2>
+
+  <div class="step animate animate-delay-1">
+    <div class="step-number">1</div>
+    <div class="step-content">
+      <h3>Install</h3>
+      <p>One command. Handles Python, Node, Claude CLI, deps, and PATH setup.</p>
+      <div class="step-code">curl -fsSL https://raw.githubusercontent.com/predator-labs/work-agent/main/install.sh | bash</div>
+    </div>
+  </div>
+
+  <div class="step animate animate-delay-2">
+    <div class="step-number">2</div>
+    <div class="step-content">
+      <h3>Configure</h3>
+      <p>Add your Slack token, Bitbucket creds, Jira API key. Everything else is optional.</p>
+      <div class="step-code">nano ~/work-agent/.env</div>
+    </div>
+  </div>
+
+  <div class="step animate animate-delay-3">
+    <div class="step-number">3</div>
+    <div class="step-content">
+      <h3>Run</h3>
+      <p>From any terminal, anywhere. Server mode or specific commands.</p>
+      <div class="step-code">work-agent              # start server<br>work-agent slack        # triage messages<br>work-agent run-all      # full cycle</div>
+    </div>
+  </div>
+</section>
+
+<!-- Commands -->
+<section class="commands" id="commands">
+  <h2 class="animate">Commands</h2>
+  <p class="subtitle animate animate-delay-1">type work-agent and go</p>
+  <div class="command-grid">
+    <div class="command-item animate animate-delay-1">
+      <code>work-agent</code>
+      <span>Start the server</span>
+    </div>
+    <div class="command-item animate animate-delay-2">
+      <code>work-agent slack</code>
+      <span>Triage Slack messages</span>
+    </div>
+    <div class="command-item animate animate-delay-2">
+      <code>work-agent review-pr &lt;url&gt;</code>
+      <span>Review a PR</span>
+    </div>
+    <div class="command-item animate animate-delay-3">
+      <code>work-agent handle "..."</code>
+      <span>Handle an issue</span>
+    </div>
+    <div class="command-item animate animate-delay-3">
+      <code>work-agent plan-day</code>
+      <span>Morning planning</span>
+    </div>
+    <div class="command-item animate animate-delay-4">
+      <code>work-agent end-day</code>
+      <span>End-of-day summary</span>
+    </div>
+    <div class="command-item animate animate-delay-4">
+      <code>work-agent run-all</code>
+      <span>Full cycle</span>
+    </div>
+    <div class="command-item animate animate-delay-5">
+      <code>work-agent status</code>
+      <span>Pending approvals</span>
+    </div>
+    <div class="command-item animate animate-delay-5">
+      <code>work-agent run-all --bg</code>
+      <span>Background dispatch</span>
+    </div>
+  </div>
+</section>
+
+<!-- Architecture -->
+<section class="architecture animate" id="architecture">
+  <h2>How it works</h2>
+  <div class="arch-diagram">
+    <div class="arch-row">
+      <span class="arch-box">CLI (Typer)</span>
+      <span class="arch-box">API (FastAPI)</span>
+    </div>
+    <div class="arch-arrow">↓</div>
+    <div class="arch-row">
+      <span class="arch-box outline">Slack Triage</span>
+      <span class="arch-box outline">PR Reviewer</span>
+      <span class="arch-box outline">Issue Handler</span>
+      <span class="arch-box outline">Daily Planner</span>
+    </div>
+    <div class="arch-arrow">↓</div>
+    <div class="arch-row">
+      <span class="arch-box">Claude Agent SDK</span>
+    </div>
+    <div class="arch-arrow">↓</div>
+    <div class="arch-row" style="gap: 8px;">
+      <span class="arch-box outline" style="font-size: 11px;">Slack</span>
+      <span class="arch-box outline" style="font-size: 11px;">Bitbucket</span>
+      <span class="arch-box outline" style="font-size: 11px;">Jira</span>
+      <span class="arch-box outline" style="font-size: 11px;">CircleCI</span>
+      <span class="arch-box outline" style="font-size: 11px;">Rollbar</span>
+      <span class="arch-box outline" style="font-size: 11px;">Todoist</span>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="logo">work-agent</div>
+  <div class="by">by predator labs</div>
+  <div class="links">
+    <a href="https://github.com/predator-labs/work-agent">GitHub</a>
+    <a href="https://github.com/predator-labs">predator-labs</a>
+    <a href="https://github.com/sharmadivyanshu">@sharmadivyanshu</a>
+  </div>
+  <div class="copy">&copy; 2026 Predator Labs. Built by Divyanshu Sharma.</div>
+</footer>
+
+<script>
+  // Scroll animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.animate').forEach(el => observer.observe(el));
+
+  // Copy install command
+  function copyInstall(el) {
+    const text = 'curl -fsSL https://raw.githubusercontent.com/predator-labs/work-agent/main/install.sh | bash';
+    navigator.clipboard.writeText(text);
+    el.classList.add('copied');
+    setTimeout(() => el.classList.remove('copied'), 1500);
+  }
+
+  // Smooth scroll for nav links
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      document.querySelector(a.getAttribute('href')).scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+</script>
+
+</body>
+</html>
