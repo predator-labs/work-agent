@@ -47,29 +47,51 @@ python -m pytest tests/ -v
 uvicorn server:app --host 127.0.0.1 --port 8000
 ```
 
-### Run from a Fresh Terminal
+### Global `work-agent` Command
+
+After cloning and setting up, add the CLI to your PATH:
 
 ```bash
-cd /path/to/work-agent
-source .venv/bin/activate
-uvicorn server:app --host 127.0.0.1 --port 8000
+# Add to your shell profile (one-time setup)
+echo 'export PATH="/path/to/work-agent/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 ```
 
-Or as a one-liner:
+Now use `work-agent` from any terminal:
+
+```bash
+# Start the server (no args)
+work-agent
+
+# Run specific tasks
+work-agent slack                                    # Triage Slack messages
+work-agent review-pr <bitbucket-pr-url>            # Review a PR
+work-agent handle "fix the login bug"              # Handle an issue
+work-agent plan-day                                 # Morning planning
+work-agent end-day                                  # End-of-day summary
+work-agent run-all                                  # Full cycle: Slack + PRs + plan
+work-agent status                                   # Show pending approvals
+work-agent approve <task-id>                        # Approve an action
+work-agent reject <task-id>                         # Reject an action
+
+# Background dispatch (returns immediately)
+work-agent run-all --bg
+work-agent handle "add caching" --bg
+
+# Start the API server explicitly
+work-agent serve
+```
+
+### Run from a Fresh Terminal (without global install)
+
 ```bash
 cd /path/to/work-agent && source .venv/bin/activate && uvicorn server:app --host 127.0.0.1 --port 8000
 ```
 
-To run in background (terminal stays usable):
+To run in background:
 ```bash
 cd /path/to/work-agent && source .venv/bin/activate && uvicorn server:app --host 127.0.0.1 --port 8000 &
 ```
-
-You can also add this alias to your `~/.zshrc`:
-```bash
-alias work-agent='cd ~/divyanshu-code/divyanshu-agent && source .venv/bin/activate && uvicorn server:app --host 127.0.0.1 --port 8000'
-```
-Then just type `work-agent` from any terminal.
 
 ### Docker Setup
 
@@ -147,32 +169,6 @@ To get a user token:
 | `MEMORY_PATH` | `/repos/.claude/projects/.../memory` | User preferences |
 
 ## Usage
-
-### CLI
-
-```bash
-# Full cycle: Slack triage + PR reviews + daily plan
-agent run-all
-
-# Individual capabilities
-agent slack                                    # Triage Slack messages
-agent review-pr <bitbucket-pr-url>            # Review a specific PR
-agent handle "fix the login bug in auth-service"  # Handle an issue
-agent plan-day                                 # Morning planning
-agent end-day                                  # End-of-day summary
-
-# Background dispatch (returns immediately)
-agent run-all --bg
-agent handle "add caching to search" --bg
-
-# Approval workflow
-agent status                                   # Show pending approvals
-agent approve <task-id>                        # Approve and execute
-agent reject <task-id>                         # Reject
-
-# Start API server
-agent serve
-```
 
 ### API
 
