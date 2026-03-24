@@ -13,39 +13,90 @@ Built with Claude Agent SDK (Python), FastAPI, and Typer. Runs in Docker.
 - **Push Notifications** — ntfy.sh for urgent alerts and approval requests on your phone.
 - **Background Dispatch** — Long tasks run in background with `--bg` flag. macOS sleep prevention via `caffeinate`.
 
-## Quick Start
+## One-Line Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/predator-labs/work-agent/main/install.sh | bash
+```
+
+This will:
+1. Check prerequisites (Python 3.12+, Node.js 18+, git)
+2. Install Claude Code CLI if missing
+3. Clone the repo to `~/work-agent`
+4. Create virtual environment and install dependencies
+5. Create `.env` from template
+6. Add `work-agent` to your PATH
+7. Run tests to verify
+
+After install, edit your credentials and start:
+```bash
+nano ~/work-agent/.env          # Add your API keys
+source ~/.zshrc                  # Reload shell
+work-agent                       # Start the server
+```
+
+Custom install location:
+```bash
+WORK_AGENT_DIR=/path/to/install curl -fsSL https://raw.githubusercontent.com/predator-labs/work-agent/main/install.sh | bash
+```
+
+## Setup on a New Device
 
 ### Prerequisites
 
-- Python 3.12+
-- Node.js 18+ (for MCP servers)
-- Claude Code CLI installed (`npm install -g @anthropic-ai/claude-code`)
-- Docker (optional, for containerized deployment)
+| Requirement | Version | Install |
+|-------------|---------|---------|
+| Python | 3.12+ | `pyenv install 3.12` or [python.org](https://python.org) |
+| Node.js | 18+ | `brew install node` or [nodejs.org](https://nodejs.org) |
+| Git | any | `brew install git` or [git-scm.com](https://git-scm.com) |
+| Claude Code CLI | latest | `npm install -g @anthropic-ai/claude-code` |
+| Docker | optional | [docker.com](https://docker.com) (for containerized deployment) |
 
-### Local Setup
+### Manual Setup (step by step)
 
 ```bash
-# Clone
+# 1. Clone
 git clone https://github.com/predator-labs/work-agent.git
 cd work-agent
 
-# Create virtual environment
+# 2. Create virtual environment
 python3.12 -m venv .venv
 source .venv/bin/activate
 
-# Install dependencies
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# Configure
+# 4. Configure credentials
 cp .env.example .env
-# Edit .env with your credentials (see Configuration section below)
+nano .env    # Fill in your API keys (see Configuration section below)
 
-# Run tests
+# 5. Add to PATH (one-time)
+echo 'export PATH="'$(pwd)'/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+# 6. Authenticate Claude Code CLI (first time only)
+claude     # Opens browser for OAuth login, then Ctrl+C
+
+# 7. Run tests
 python -m pytest tests/ -v
 
-# Start the server
-uvicorn server:app --host 127.0.0.1 --port 8000
+# 8. Start
+work-agent
 ```
+
+### What you need from each service
+
+| Service | What to get | Where |
+|---------|------------|-------|
+| **Slack** | Bot/User OAuth Token + Team ID | [api.slack.com/apps](https://api.slack.com/apps) (see Slack App Setup below) |
+| **Slack** | Your Member ID | Slack profile → ... → Copy member ID |
+| **Bitbucket** | App password | Bitbucket → Personal Settings → App passwords |
+| **Jira** | API token | [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens) |
+| **CircleCI** | Personal API token | CircleCI → User Settings → Personal API Tokens |
+| **Codacy** | Account API token | Codacy → Your Account → API tokens |
+| **Rollbar** | Project access token | Rollbar → Project → Settings → Project Access Tokens |
+| **Todoist** | API token | Todoist → Settings → Integrations → Developer |
+| **ntfy** | Install app on phone | [ntfy.sh](https://ntfy.sh) → subscribe to topic `work-agent` |
 
 ### Global `work-agent` Command
 
