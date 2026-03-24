@@ -5,11 +5,15 @@ def build_mcp_servers(settings: Settings) -> dict:
     """Build MCP server configuration dict for Claude Agent SDK."""
     servers = {}
 
-    # Slack (SSE)
-    if settings.slack_user_id:
+    # Slack (stdio — official MCP server with bot token)
+    if settings.slack_bot_token:
         servers["slack"] = {
-            "type": "sse",
-            "url": "https://mcp.anthropic.com/slack/sse",
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-slack"],
+            "env": {
+                "SLACK_BOT_TOKEN": settings.slack_bot_token,
+                "SLACK_TEAM_ID": settings.slack_team_id,
+            },
         }
 
     # Bitbucket

@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     rollbar_token_docyt_server: str = ""
     rollbar_token_docyt_mlai: str = ""
 
+    # MCP: Slack
+    slack_bot_token: str = ""
+    slack_team_id: str = ""
+
     # MCP: Todoist
     todoist_api_key: str = ""
 
