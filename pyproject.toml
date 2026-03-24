@@ -1,5 +1,5 @@
 [project]
-name = "divyanshu-agent"
+name = "work-agent"
 version = "0.1.0"
 description = "Personal autonomous agent for Slack triage, PR review, issue handling, and daily planning"
 requires-python = ">=3.12"

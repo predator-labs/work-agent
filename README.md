@@ -217,7 +217,7 @@ Phase 4: Create PR + Notify team
 - **Todoist** — Daily tasks appear automatically
 - **ntfy.sh** — Push notifications for urgent items and approval requests
   - Install the ntfy app (iOS / Android)
-  - Subscribe to your topic (default: `divyanshu-agent`)
+  - Subscribe to your topic (default: `work-agent`)
 
 ## Development
 

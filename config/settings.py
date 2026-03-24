@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     agent_secret: str
 
     # Notifications
-    ntfy_topic: str = "divyanshu-agent"
+    ntfy_topic: str = "work-agent"
 
     # Identity
     slack_user_id: str = ""

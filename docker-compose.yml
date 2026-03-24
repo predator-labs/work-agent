@@ -9,6 +9,7 @@ services:
       - ./data:/app/data:rw
       - ~/.ssh:/root/.ssh:ro
       - ~/docyt:/repos:rw
+      - ~/.claude:/root/.claude:rw        # Claude Code auth & config
     environment:
       - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-Divyanshu Sharma}
       - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL:-divyanshu.sharma@docyt.com}

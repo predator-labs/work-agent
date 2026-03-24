@@ -22,6 +22,6 @@ def test_settings_defaults(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setenv("AGENT_SECRET", "test-secret")
     settings = Settings()
-    assert settings.ntfy_topic == "divyanshu-agent"
+    assert settings.ntfy_topic == "work-agent"
     assert settings.obsidian_vault_path == "/vault"
     assert settings.repos_path == "/repos"
