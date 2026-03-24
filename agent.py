@@ -1,6 +1,5 @@
 # agent.py
 import asyncio
-from typing import Optional
 
 import typer
 
@@ -69,7 +68,7 @@ def run_all(background: bool = typer.Option(False, "--bg", help="Run in backgrou
                 await deps["pr"].run(pr_url=pr["url"], slack_thread=pr.get("slack_thread"))
 
             # 3. Daily plan
-            plan_result = await deps["planner"].plan_day(slack_results=str(slack_result))
+            await deps["planner"].plan_day(slack_results=str(slack_result))
             typer.echo("Daily plan created.")
 
     asyncio.run(_run())
@@ -118,7 +117,7 @@ def handle(
             issue_id = await deps["issue"].create_issue(description, source={"cli": True})
             typer.echo(f"Issue created: {issue_id}")
             result = await deps["issue"].run_phase1(issue_id)
-            typer.echo(f"Phase 1 complete. Awaiting approval.")
+            typer.echo("Phase 1 complete. Awaiting approval.")
             return result
 
     asyncio.run(_run())
@@ -170,7 +169,7 @@ def approve(task_id: str):
 def reject(task_id: str):
     """Reject a pending action."""
     deps = _get_deps()
-    result = asyncio.run(deps["state"].reject(task_id))
+    asyncio.run(deps["state"].reject(task_id))
     typer.echo(f"Rejected: {task_id}")
 
 

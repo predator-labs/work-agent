@@ -1,5 +1,4 @@
 # tests/test_agent_cli.py
-import pytest
 from typer.testing import CliRunner
 from unittest.mock import patch
 

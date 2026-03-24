@@ -1,5 +1,4 @@
 import pytest
-import httpx
 from shared.notifications import Notifier
 
 

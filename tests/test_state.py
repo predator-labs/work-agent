@@ -1,7 +1,5 @@
 import asyncio
-import json
 import pytest
-from pathlib import Path
 from shared.state import StateManager
 
 

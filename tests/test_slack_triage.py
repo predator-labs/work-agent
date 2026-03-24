@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock
 from capabilities.slack_triage import SlackTriage
 from shared.state import StateManager
 from shared.notifications import Notifier

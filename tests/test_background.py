@@ -1,7 +1,6 @@
 import asyncio
-import pytest
 from unittest.mock import patch, MagicMock
-from shared.background import BackgroundTaskRunner, TaskStatus
+from shared.background import BackgroundTaskRunner
 from shared.caffeinate import CaffeinateGuard
 
 def test_caffeinate_guard_init():
@@ -52,7 +51,7 @@ async def test_submit_failing_task():
     runner = BackgroundTaskRunner()
     async def failing_task():
         raise ValueError("something broke")
-    task_id = await runner.submit("fail-task", failing_task())
+    await runner.submit("fail-task", failing_task())
     await asyncio.sleep(0.1)
     status = runner.get_status("fail-task")
     assert status.state == "failed"

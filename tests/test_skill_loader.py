@@ -1,5 +1,4 @@
 import pytest
-from pathlib import Path
 from shared.skill_loader import SkillLoader
 
 @pytest.fixture

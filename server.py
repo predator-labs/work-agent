@@ -1,7 +1,7 @@
 # server.py
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -204,7 +204,11 @@ async def run_end_day():
 
 @app.post("/approve/{task_id}")
 async def approve_task(task_id: str):
-    approval = await state.approve(task_id)
+    _state = state if state is not None else StateManager("data/state.json")
+    try:
+        approval = await _state.approve(task_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"No pending approval with id: {task_id}")
     result = await _execute_approved_action(approval)
     return {"status": "approved", "result": result}
 
