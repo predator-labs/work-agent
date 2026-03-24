@@ -47,6 +47,30 @@ python -m pytest tests/ -v
 uvicorn server:app --host 127.0.0.1 --port 8000
 ```
 
+### Run from a Fresh Terminal
+
+```bash
+cd /path/to/work-agent
+source .venv/bin/activate
+uvicorn server:app --host 127.0.0.1 --port 8000
+```
+
+Or as a one-liner:
+```bash
+cd /path/to/work-agent && source .venv/bin/activate && uvicorn server:app --host 127.0.0.1 --port 8000
+```
+
+To run in background (terminal stays usable):
+```bash
+cd /path/to/work-agent && source .venv/bin/activate && uvicorn server:app --host 127.0.0.1 --port 8000 &
+```
+
+You can also add this alias to your `~/.zshrc`:
+```bash
+alias work-agent='cd ~/divyanshu-code/divyanshu-agent && source .venv/bin/activate && uvicorn server:app --host 127.0.0.1 --port 8000'
+```
+Then just type `work-agent` from any terminal.
+
 ### Docker Setup
 
 ```bash
@@ -87,6 +111,18 @@ Copy `.env.example` to `.env` and fill in:
    - `pins:read`, `bookmarks:read` (optional)
 4. Click **Install to Workspace** - Authorize
 5. Copy the **Bot User OAuth Token** (`xoxb-...`) to `SLACK_BOT_TOKEN`
+
+### Using a User Token (for full channel access)
+
+A bot token only sees channels it's invited to. A **user token** (`xoxp-...`) inherits all your channel memberships and DM access automatically.
+
+To get a user token:
+1. Go to [api.slack.com/apps](https://api.slack.com/apps) - select your Work Agent app
+2. Go to **OAuth & Permissions**
+3. Under **User Token Scopes**, add the same scopes as bot scopes above plus `search:read`
+4. Click **Reinstall to Workspace** - Authorize
+5. Copy the **User OAuth Token** (`xoxp-...`)
+6. Set `SLACK_BOT_TOKEN=xoxp-...` in your `.env` (the MCP server accepts both token types)
 
 ### Optional Integrations
 
