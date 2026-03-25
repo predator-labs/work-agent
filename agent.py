@@ -202,6 +202,86 @@ def status():
 
 
 @app.command()
+def listen():
+    """Start event-driven mode: Slack (real-time) + Jira (polling) + periodic triage."""
+    import logging
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+
+    deps = _get_deps()
+
+    async def on_mention(event):
+        """Handle @mention events."""
+        text = event.get("text", "")
+        channel = event.get("channel", "")
+        thread_ts = event.get("ts", "")
+        user = event.get("user", "")
+
+        # Check if it's a PR link
+        if "bitbucket.org" in text and "pull-requests" in text:
+            import re
+            match = re.search(r"https://bitbucket\.org/[^\s]+/pull-requests/\d+", text)
+            if match:
+                pr_url = match.group(0)
+                logging.info(f"PR review triggered: {pr_url}")
+                await deps["pr"].run(pr_url=pr_url, slack_thread={"channel_id": channel, "thread_ts": thread_ts})
+                return
+
+        # Otherwise treat as a message to triage
+        result = await deps["slack"].run()
+        logging.info(f"Mention triage: {len(result.get('pr_reviews', []))} PRs, {len(result.get('issues', []))} issues")
+
+    async def on_dm(event):
+        """Handle DM events."""
+        logging.info(f"DM from {event.get('user', '?')}: {event.get('text', '')[:100]}")
+        result = await deps["slack"].run()
+        logging.info(f"DM triage complete: {len(result.get('simple', []))} replies drafted")
+
+    async def on_pr_link(event):
+        """Handle PR links shared in channels."""
+        import re
+        text = event.get("text", "")
+        channel = event.get("channel", "")
+        thread_ts = event.get("ts", "")
+        match = re.search(r"https://bitbucket\.org/[^\s>]+/pull-requests/\d+", text)
+        if match:
+            pr_url = match.group(0)
+            logging.info(f"PR link detected: {pr_url}")
+            await deps["pr"].run(pr_url=pr_url, slack_thread={"channel_id": channel, "thread_ts": thread_ts})
+
+    async def on_full_triage():
+        """Periodic full triage fallback."""
+        result = await deps["slack"].run()
+        pr_count = len(result.get("pr_reviews", []))
+        issue_count = len(result.get("issues", []))
+        simple_count = len(result.get("simple", []))
+        logging.info(f"Full triage: {pr_count} PRs, {issue_count} issues, {simple_count} replies")
+
+        for pr in result.get("pr_reviews", []):
+            await deps["pr"].run(pr_url=pr["url"], slack_thread=pr.get("slack_thread"))
+
+    from capabilities.event_listener import EventListener
+    listener = EventListener(
+        settings=deps["settings"],
+        state=deps["state"],
+        notifier=Notifier(ntfy_topic=deps["settings"].ntfy_topic, slack_user_id=deps["settings"].slack_user_id),
+        on_mention=on_mention,
+        on_dm=on_dm,
+        on_pr_link=on_pr_link,
+        on_full_triage=on_full_triage,
+    )
+
+    async def _run():
+        from shared.caffeinate import CaffeinateGuard
+        with CaffeinateGuard():
+            await listener.start()
+
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        typer.echo("\nShutting down...")
+
+
+@app.command()
 def serve(host: str = "0.0.0.0", port: int = 8000):
     """Start the FastAPI server."""
     import uvicorn
