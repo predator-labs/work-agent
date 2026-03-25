@@ -329,7 +329,7 @@ def listen():
 
         # Casual messages: auto-reply instantly
         if _is_casual_message(text):
-            reply = f"Hey {first_name}! I'm doing well, thanks! What can I help you with?"
+            reply = f"Hey {first_name}! Doing well, thanks for asking! How can I help you?"
             await _send_slack_reply(channel, reply)
             logging.info(f"Auto-replied to {name}: {reply}")
             return
@@ -399,7 +399,13 @@ def listen():
             f"- Your FINAL output must be ONLY the reply text to send on Slack.\n"
             f"- Keep it concise and natural — like how a real engineer would reply.\n"
             f"- Do NOT use slack_send_message tool. Just output the text.\n"
-            f"- No markdown, no quotes, no preamble. Just the message."
+            f"- No markdown, no quotes, no preamble. Just the message.\n\n"
+            f"TONE & LANGUAGE:\n"
+            f"- Always be respectful and professional.\n"
+            f"- When replying in Hindi/Hinglish, ALWAYS use 'aap' (respectful), NEVER use 'tu' or 'tum'.\n"
+            f"- Address colleagues with respect — they are your peers and seniors.\n"
+            f"- Match the language of the incoming message (English reply for English, Hinglish for Hindi).\n"
+            f"- Be warm and helpful but never overly casual or disrespectful."
         )
 
         draft_reply = ""
