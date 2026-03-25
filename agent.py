@@ -373,6 +373,9 @@ def listen():
             deps["state"], deps["slack"].notifier,
             slack_user_token=deps["settings"].slack_user_token,
             slack_bot_token=deps["settings"].slack_bot_token,
+            jira_url=deps["settings"].jira_url,
+            jira_email=deps["settings"].jira_email,
+            jira_api_token=deps["settings"].jira_api_token,
         )
 
         system = (
@@ -383,9 +386,10 @@ def listen():
             f"RULES:\n"
             f"- Read the conversation history to understand context.\n"
             f"- If the question needs real data (Jira tickets, PR status, etc.), "
-            f"use slack_search_messages or Jira/Bitbucket MCP tools to look it up.\n"
-            f"- For Jira queries, use searchJiraIssuesUsingJql with JQL like: "
+            f"use jira_search or jira_get_issue tools to look it up.\n"
+            f"- For Jira queries, use jira_search with JQL like: "
             f"'assignee = \"{deps['settings'].jira_email}\" ORDER BY updated DESC'\n"
+            f"- Available tools: jira_search, jira_get_issue, slack_search_messages\n"
             f"- Your FINAL output must be ONLY the reply text to send on Slack.\n"
             f"- Keep it concise and natural — like how a real engineer would reply.\n"
             f"- Do NOT use slack_send_message tool. Just output the text.\n"

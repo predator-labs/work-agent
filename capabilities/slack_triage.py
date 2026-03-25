@@ -39,6 +39,9 @@ class SlackTriage:
             self.state, self.notifier,
             slack_user_token=self.settings.slack_user_token if self.settings else "",
             slack_bot_token=self.settings.slack_bot_token if self.settings else "",
+            jira_url=self.settings.jira_url if self.settings else "",
+            jira_email=self.settings.jira_email if self.settings else "",
+            jira_api_token=self.settings.jira_api_token if self.settings else "",
         )
         return servers
 

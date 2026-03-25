@@ -18,11 +18,13 @@ def build_custom_tools_server(
     vault_path: str = "/vault",
     slack_user_token: str = "",
     slack_bot_token: str = "",
+    jira_url: str = "",
+    jira_email: str = "",
+    jira_api_token: str = "",
 ):
     global _cached_server, _cached_server_key
 
-    # Cache key based on identity of state/notifier and token values
-    cache_key = (id(state), id(notifier), vault_path, slack_user_token, slack_bot_token)
+    cache_key = (id(state), id(notifier), vault_path, slack_user_token, slack_bot_token, jira_url)
     if _cached_server is not None and _cached_server_key == cache_key:
         return _cached_server
 
@@ -56,7 +58,24 @@ def build_custom_tools_server(
             )
             return resp.json()
 
-    tools = _build_tools(state, notifier, vault_path, _slack_api, _slack_api_post, slack_read_token, slack_write_token)
+    async def _jira_api(endpoint: str, params: dict | None = None) -> dict:
+        """Call Jira REST API."""
+        if not jira_url or not jira_api_token:
+            return {"error": "Jira not configured"}
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{jira_url}{endpoint}",
+                params=params or {},
+                auth=(jira_email, jira_api_token),
+                timeout=30,
+            )
+            return resp.json()
+
+    tools = _build_tools(
+        state, notifier, vault_path,
+        _slack_api, _slack_api_post, slack_read_token, slack_write_token,
+        _jira_api, jira_email,
+    )
 
     server = create_sdk_mcp_server(
         name="agent-tools",
@@ -76,6 +95,8 @@ def _build_tools(
     _slack_api_post,
     slack_read_token: str,
     slack_write_token: str,
+    _jira_api=None,
+    jira_email: str = "",
 ) -> list[SdkMcpTool]:
     """Build and return all SdkMcpTool instances."""
 
@@ -365,11 +386,90 @@ def _build_tools(
         except Exception as e:
             return {"content": [{"type": "text", "text": f"Error logging to Obsidian: {e}"}]}
 
-    return [
+    # ── Jira Tools ──
+
+    @tool(
+        "jira_search",
+        "Search Jira issues using JQL. Returns key, summary, status, priority, assignee.",
+        {
+            "type": "object",
+            "properties": {
+                "jql": {"type": "string", "description": "JQL query string"},
+                "max_results": {"type": "number", "description": "Max results (default 10)", "default": 10},
+            },
+            "required": ["jql"],
+        },
+    )
+    async def jira_search(args: dict[str, Any]) -> dict[str, Any]:
+        if not _jira_api:
+            return {"content": [{"type": "text", "text": "Jira not configured"}]}
+        result = await _jira_api(
+            "/rest/api/3/search/jql",
+            {"jql": args["jql"], "maxResults": str(args.get("max_results", 10)), "fields": "summary,status,priority,assignee,updated"},
+        )
+        if "error" in result or "errorMessages" in result:
+            return {"content": [{"type": "text", "text": f"Jira error: {result}"}]}
+        issues = []
+        for issue in result.get("issues", []):
+            f = issue.get("fields", {})
+            issues.append({
+                "key": issue["key"],
+                "summary": f.get("summary", ""),
+                "status": f.get("status", {}).get("name", ""),
+                "priority": f.get("priority", {}).get("name", ""),
+                "assignee": f.get("assignee", {}).get("displayName", "") if f.get("assignee") else "Unassigned",
+                "updated": f.get("updated", ""),
+            })
+        return {"content": [{"type": "text", "text": str({"total": result.get("total", 0), "issues": issues})}]}
+
+    @tool(
+        "jira_get_issue",
+        "Get details of a specific Jira issue by key (e.g., ENG-1234, ES-5841).",
+        {
+            "type": "object",
+            "properties": {
+                "issue_key": {"type": "string", "description": "Jira issue key (e.g., ENG-1234)"},
+            },
+            "required": ["issue_key"],
+        },
+    )
+    async def jira_get_issue(args: dict[str, Any]) -> dict[str, Any]:
+        if not _jira_api:
+            return {"content": [{"type": "text", "text": "Jira not configured"}]}
+        result = await _jira_api(
+            f"/rest/api/3/issue/{args['issue_key']}",
+            {"fields": "summary,status,priority,assignee,description,comment,updated,created"},
+        )
+        if "error" in result or "errorMessages" in result:
+            return {"content": [{"type": "text", "text": f"Jira error: {result}"}]}
+        f = result.get("fields", {})
+        desc = f.get("description", {})
+        # Extract text from Atlassian Document Format
+        desc_text = ""
+        if isinstance(desc, dict):
+            for block in desc.get("content", []):
+                for item in block.get("content", []):
+                    if item.get("type") == "text":
+                        desc_text += item.get("text", "")
+                desc_text += "\n"
+        return {"content": [{"type": "text", "text": str({
+            "key": result["key"],
+            "summary": f.get("summary", ""),
+            "status": f.get("status", {}).get("name", ""),
+            "priority": f.get("priority", {}).get("name", ""),
+            "assignee": f.get("assignee", {}).get("displayName", "") if f.get("assignee") else "Unassigned",
+            "description": desc_text[:500],
+            "updated": f.get("updated", ""),
+            "created": f.get("created", ""),
+        })}]}
+
+    all_tools = [
         slack_list_conversations, slack_get_history, slack_get_thread,
         slack_search_messages, slack_send_message, slack_get_user_info,
+        jira_search, jira_get_issue,
         create_approval, send_notification, log_to_obsidian,
     ]
+    return all_tools
 
 
 def reset_server_cache():
