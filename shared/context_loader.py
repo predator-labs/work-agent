@@ -1,5 +1,8 @@
 from pathlib import Path
 
+# User rules file alongside the config directory
+USER_RULES_FILE = Path(__file__).parent.parent / "config" / "user_rules.md"
+
 
 class ContextLoader:
     def __init__(self, repos_path: str | Path):
@@ -45,4 +48,18 @@ class ContextLoader:
             memory_context = self.load_memory(memory_path)
             if memory_context:
                 parts.append(memory_context)
+        # Append user-defined rules
+        user_rules = load_user_rules()
+        if user_rules:
+            parts.append(user_rules)
         return "\n\n".join(p for p in parts if p)
+
+
+def load_user_rules() -> str:
+    """Load user-defined rules from config/user_rules.md."""
+    if not USER_RULES_FILE.exists():
+        return ""
+    content = USER_RULES_FILE.read_text().strip()
+    if content:
+        return f"## User Rules\n{content}"
+    return ""

@@ -1,6 +1,7 @@
+import json as _json
+
 from claude_agent_sdk import query, ClaudeAgentOptions
 
-from config.mcp import build_mcp_servers
 from config.settings import Settings
 from shared.state import StateManager
 from shared.notifications import Notifier
@@ -8,6 +9,71 @@ from shared.skill_loader import SkillLoader
 from shared.context_loader import ContextLoader
 from shared.custom_tools import build_custom_tools_server
 from prompts.slack_triage import build_prompt
+
+# JSON schema for structured output from the triage agent
+_TRIAGE_OUTPUT_SCHEMA = {
+    "type": "json_schema",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "simple": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "channel": {"type": "string"},
+                        "summary": {"type": "string"},
+                        "action_taken": {"type": "string"},
+                    },
+                },
+                "description": "Simple messages handled (greetings, status checks, factual questions)",
+            },
+            "pr_reviews": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string"},
+                        "requester": {"type": "string"},
+                        "repo": {"type": "string"},
+                        "slack_thread": {
+                            "type": "object",
+                            "properties": {
+                                "channel": {"type": "string"},
+                                "thread_ts": {"type": "string"},
+                            },
+                        },
+                    },
+                },
+                "description": "PR review requests found",
+            },
+            "issues": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "description": {"type": "string"},
+                        "source_channel": {"type": "string"},
+                        "priority": {"type": "string"},
+                    },
+                },
+                "description": "Bug reports, feature requests, task assignments",
+            },
+            "informational": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "channel": {"type": "string"},
+                        "summary": {"type": "string"},
+                    },
+                },
+                "description": "FYI messages, announcements — no action needed",
+            },
+        },
+        "required": ["simple", "pr_reviews", "issues", "informational"],
+    },
+}
 
 
 class SlackTriage:
@@ -43,7 +109,7 @@ class SlackTriage:
         return servers
 
     async def run(self) -> dict:
-        """Run Slack triage. Returns classification results."""
+        """Run Slack triage. Returns structured classification results."""
         skill_loader = SkillLoader(self.skills_path)
         context_loader = ContextLoader(self.repos_path)
 
@@ -68,7 +134,7 @@ class SlackTriage:
             f"For each message that needs a reply, use create_approval tool. "
             f"For PR reviews, report the PR URL. "
             f"For issues/features, report the description. "
-            f"Return a JSON summary of what was processed."
+            f"Return a structured JSON summary with keys: simple, pr_reviews, issues, informational."
         )
 
         results = {"simple": [], "pr_reviews": [], "issues": [], "informational": []}
@@ -85,10 +151,53 @@ class SlackTriage:
                 ],
                 permission_mode="bypassPermissions",
                 max_turns=50,
+                output_format=_TRIAGE_OUTPUT_SCHEMA,
             ),
         ):
             if hasattr(message, "result"):
-                # Parse results from agent output
-                results["raw_result"] = message.result
+                parsed = _parse_triage_result(message.result)
+                if parsed:
+                    results.update(parsed)
+                else:
+                    results["raw_result"] = message.result
 
         return results
+
+
+def _parse_triage_result(raw: str) -> dict | None:
+    """Parse the agent's result into structured triage categories."""
+    if not raw:
+        return None
+
+    # Try direct JSON parse (structured output_format should give us valid JSON)
+    try:
+        data = _json.loads(raw)
+        if isinstance(data, dict):
+            result = {}
+            for key in ("simple", "pr_reviews", "issues", "informational"):
+                if key in data and isinstance(data[key], list):
+                    result[key] = data[key]
+                else:
+                    result[key] = []
+            return result
+    except (ValueError, _json.JSONDecodeError):
+        pass
+
+    # Try to extract JSON from markdown code blocks
+    import re
+    json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
+    if json_match:
+        try:
+            data = _json.loads(json_match.group(1))
+            if isinstance(data, dict):
+                result = {}
+                for key in ("simple", "pr_reviews", "issues", "informational"):
+                    if key in data and isinstance(data[key], list):
+                        result[key] = data[key]
+                    else:
+                        result[key] = []
+                return result
+        except (ValueError, _json.JSONDecodeError):
+            pass
+
+    return None

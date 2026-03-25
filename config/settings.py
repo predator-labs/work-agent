@@ -50,6 +50,7 @@ class Settings(BaseSettings):
 
     # MCP: Slack
     slack_bot_token: str = ""
+    slack_user_token: str = ""
     slack_team_id: str = ""
 
     # MCP: Todoist

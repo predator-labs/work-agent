@@ -52,3 +52,34 @@ def test_build_context_for_service(repos_dir):
     assert "Root CLAUDE.md" in context
     assert "Ruby 2.7.5" in context
     assert "Fix issues in code" in context
+
+
+def test_load_user_rules(tmp_path):
+    from shared.context_loader import load_user_rules
+    import shared.context_loader as ctx_mod
+
+    # Save original and override
+    orig = ctx_mod.USER_RULES_FILE
+    try:
+        rules_file = tmp_path / "user_rules.md"
+        rules_file.write_text("Always respond in bullet points.\nUse formal tone.")
+        ctx_mod.USER_RULES_FILE = rules_file
+
+        content = load_user_rules()
+        assert "User Rules" in content
+        assert "bullet points" in content
+    finally:
+        ctx_mod.USER_RULES_FILE = orig
+
+
+def test_load_user_rules_empty(tmp_path):
+    from shared.context_loader import load_user_rules
+    import shared.context_loader as ctx_mod
+
+    orig = ctx_mod.USER_RULES_FILE
+    try:
+        ctx_mod.USER_RULES_FILE = tmp_path / "nonexistent.md"
+        content = load_user_rules()
+        assert content == ""
+    finally:
+        ctx_mod.USER_RULES_FILE = orig

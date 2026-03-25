@@ -3,7 +3,6 @@ from pathlib import Path
 
 from claude_agent_sdk import query, ClaudeAgentOptions
 
-from config.mcp import build_mcp_servers
 from config.settings import Settings
 from shared.state import StateManager
 from shared.notifications import Notifier
@@ -58,7 +57,7 @@ class DailyPlanner:
         return servers
 
     async def plan_day(self, slack_results: str = "") -> dict:
-        """Morning planning: scan Slack, Jira, Bitbucket; create Todoist tasks."""
+        """Morning planning: summarize Slack results, send DM + notification."""
         skill_loader = SkillLoader(self.skills_path)
         skills = skill_loader.load_many(self.PLAN_SKILLS)
 
@@ -69,13 +68,13 @@ class DailyPlanner:
         )
 
         task_prompt = (
-            "Create my daily plan:\n"
-            "1. Query Jira for my assigned tickets (To Do + In Progress)\n"
-            "2. Check Bitbucket for pending PR reviews\n"
-            "3. Create Todoist tasks prioritized P1-P4\n"
-            "4. Send me a Slack DM summary\n"
-            "5. Send ntfy notification\n"
-            "6. Log the plan to Obsidian"
+            "Create my daily plan based on the Slack triage results provided in the system prompt.\n"
+            "Steps:\n"
+            "1. Summarize the Slack triage results into prioritized action items (P1-P4)\n"
+            "2. Send me a Slack DM with the daily plan summary\n"
+            "3. Send an ntfy notification: 'Daily plan ready'\n"
+            "4. Log the plan to Obsidian\n"
+            "Do NOT attempt to query Jira or Bitbucket directly — use the Slack results provided."
         )
 
         result = {}
@@ -88,7 +87,7 @@ class DailyPlanner:
                     "mcp__agent-tools__*",
                 ],
                 permission_mode="bypassPermissions",
-                max_turns=20,
+                max_turns=15,
             ),
         ):
             if hasattr(message, "result"):

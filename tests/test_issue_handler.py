@@ -3,6 +3,14 @@ from unittest.mock import AsyncMock
 from capabilities.issue_handler import IssueHandler
 from shared.state import StateManager
 from shared.notifications import Notifier
+from shared.custom_tools import reset_server_cache
+
+
+@pytest.fixture(autouse=True)
+def _reset_cache():
+    reset_server_cache()
+    yield
+    reset_server_cache()
 
 
 @pytest.fixture

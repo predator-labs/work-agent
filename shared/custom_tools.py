@@ -1,7 +1,15 @@
 from typing import Any
-from claude_agent_sdk import tool, create_sdk_mcp_server
+from claude_agent_sdk import tool, create_sdk_mcp_server, SdkMcpTool
 from shared.state import StateManager
 from shared.notifications import Notifier
+
+# Module-level cache for the SDK MCP server instance.
+# The SDK MCP server must be created once and reused across query() calls.
+# Creating a new server instance per query() causes "stream closed" errors
+# because the SDK registers the server transport on first use, and a
+# re-created Server object gets a stale/closed transport reference.
+_cached_server = None
+_cached_server_key = None
 
 
 def build_custom_tools_server(
@@ -11,6 +19,13 @@ def build_custom_tools_server(
     slack_user_token: str = "",
     slack_bot_token: str = "",
 ):
+    global _cached_server, _cached_server_key
+
+    # Cache key based on identity of state/notifier and token values
+    cache_key = (id(state), id(notifier), vault_path, slack_user_token, slack_bot_token)
+    if _cached_server is not None and _cached_server_key == cache_key:
+        return _cached_server
+
     import httpx
 
     # Prefer user token for reading (full access), bot token for posting
@@ -40,6 +55,29 @@ def build_custom_tools_server(
                 timeout=30,
             )
             return resp.json()
+
+    tools = _build_tools(state, notifier, vault_path, _slack_api, _slack_api_post, slack_read_token, slack_write_token)
+
+    server = create_sdk_mcp_server(
+        name="agent-tools",
+        version="1.0.0",
+        tools=tools,
+    )
+    _cached_server = server
+    _cached_server_key = cache_key
+    return server
+
+
+def _build_tools(
+    state: StateManager,
+    notifier: Notifier,
+    vault_path: str,
+    _slack_api,
+    _slack_api_post,
+    slack_read_token: str,
+    slack_write_token: str,
+) -> list[SdkMcpTool]:
+    """Build and return all SdkMcpTool instances."""
 
     # ── Slack Tools ──
 
@@ -149,7 +187,6 @@ def build_custom_tools_server(
             "count": str(args.get("count", 20)),
             "sort": args.get("sort", "timestamp"),
         }
-        # Search requires user token
         result = await _slack_api("search.messages", params, token=slack_read_token)
         if not result.get("ok"):
             return {"content": [{"type": "text", "text": f"Error: {result.get('error')}"}]}
@@ -328,12 +365,15 @@ def build_custom_tools_server(
         except Exception as e:
             return {"content": [{"type": "text", "text": f"Error logging to Obsidian: {e}"}]}
 
-    return create_sdk_mcp_server(
-        name="agent-tools",
-        version="1.0.0",
-        tools=[
-            slack_list_conversations, slack_get_history, slack_get_thread,
-            slack_search_messages, slack_send_message, slack_get_user_info,
-            create_approval, send_notification, log_to_obsidian,
-        ],
-    )
+    return [
+        slack_list_conversations, slack_get_history, slack_get_thread,
+        slack_search_messages, slack_send_message, slack_get_user_info,
+        create_approval, send_notification, log_to_obsidian,
+    ]
+
+
+def reset_server_cache():
+    """Reset the cached server instance (useful for testing)."""
+    global _cached_server, _cached_server_key
+    _cached_server = None
+    _cached_server_key = None

@@ -1,4 +1,10 @@
+import json
+from pathlib import Path
+
 from config.settings import Settings
+
+# Path to user-defined MCP server configs
+USER_MCP_CONFIG = Path(__file__).parent / "user_mcp.json"
 
 
 def build_mcp_servers(settings: Settings) -> dict:
@@ -88,4 +94,18 @@ def build_mcp_servers(settings: Settings) -> dict:
         "url": "https://mcp.figma.com/mcp",
     }
 
+    # Merge user-defined MCP servers
+    servers.update(load_user_mcp_servers())
+
     return servers
+
+
+def load_user_mcp_servers() -> dict:
+    """Load user-defined MCP server configs from config/user_mcp.json."""
+    if not USER_MCP_CONFIG.exists():
+        return {}
+    try:
+        with open(USER_MCP_CONFIG) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
