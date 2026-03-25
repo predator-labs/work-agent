@@ -260,35 +260,28 @@ def listen():
         ts = event.get("ts", "")
         logging.info(f"DM from {user_id}: {text[:100]}")
 
-        # For simple greetings/short messages, create a quick approval
+        # For simple greetings/short messages, reply directly
         simple_patterns = ["hello", "hi", "hey", "hellu", "helu", "sup", "yo", "ping", "good morning", "gm"]
         if any(text.strip().lower().startswith(p) for p in simple_patterns):
-            # Look up user name
             import httpx
+            token = deps["settings"].slack_user_token or deps["settings"].slack_bot_token
+            # Look up user name
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     "https://slack.com/api/users.info",
                     params={"user": user_id},
-                    headers={"Authorization": f"Bearer {deps['settings'].slack_user_token}"},
+                    headers={"Authorization": f"Bearer {token}"},
                 )
                 user_data = resp.json()
                 name = user_data.get("user", {}).get("real_name", user_id)
 
-            draft = f"Hey {name.split()[0]}! What's up?"
-            task_id = f"slack-reply-{channel}-{ts}"
-            await deps["state"].add_pending_approval(
-                task_id=task_id,
-                approval_type="slack_reply",
-                payload={"channel_id": channel, "thread_ts": ts, "text": draft},
-                context={"from": name, "summary": text[:100]},
-            )
-            notifier = deps["slack"].notifier
-            await notifier.push_approval(
-                task_id=task_id,
-                action_summary=f"Reply to {name}: \"{text[:50]}\"",
-                details=f"Draft: {draft}",
-            )
-            logging.info(f"Quick reply drafted for {name}, awaiting approval")
+                reply = f"Hey {name.split()[0]}! What's up?"
+                await client.post(
+                    "https://slack.com/api/chat.postMessage",
+                    json={"channel": channel, "text": reply},
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                )
+            logging.info(f"Auto-replied to {name}: {reply}")
             return
 
         # For anything else, run full triage
