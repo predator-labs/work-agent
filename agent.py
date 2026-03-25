@@ -348,9 +348,11 @@ def listen():
         conversation_context = ""
         try:
             async with _httpx.AsyncClient() as client:
+                import time as _time
+                oldest = str(_time.time() - 2 * 86400)  # last 2 days
                 resp = await client.get(
                     "https://slack.com/api/conversations.history",
-                    params={"channel": channel, "limit": "10"},
+                    params={"channel": channel, "limit": "15", "oldest": oldest},
                     headers={"Authorization": f"Bearer {token}"},
                     timeout=10,
                 )
