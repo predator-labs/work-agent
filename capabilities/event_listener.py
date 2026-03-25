@@ -90,7 +90,7 @@ class EventListener:
     async def _handle_slack_event(self, client: SocketModeClient, req: SocketModeRequest):
         """Handle incoming Slack Socket Mode events."""
         # Always acknowledge immediately
-        client.send_socket_mode_response(SocketModeResponse(envelope_id=req.envelope_id))
+        await client.send_socket_mode_response(SocketModeResponse(envelope_id=req.envelope_id))
 
         if req.type != "events_api":
             return

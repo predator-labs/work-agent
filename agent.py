@@ -263,7 +263,7 @@ def listen():
     listener = EventListener(
         settings=deps["settings"],
         state=deps["state"],
-        notifier=Notifier(ntfy_topic=deps["settings"].ntfy_topic, slack_user_id=deps["settings"].slack_user_id),
+        notifier=deps["slack"].notifier,
         on_mention=on_mention,
         on_dm=on_dm,
         on_pr_link=on_pr_link,
