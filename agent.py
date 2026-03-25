@@ -18,7 +18,7 @@ def _get_deps():
 
     settings = Settings()
     state = StateManager("data/state.json")
-    notifier = Notifier(ntfy_topic=settings.ntfy_topic, slack_user_id=settings.slack_user_id)
+    notifier = Notifier(ntfy_topic=settings.ntfy_topic, slack_user_id=settings.slack_user_id, agent_secret=settings.agent_secret)
 
     common = dict(
         state=state, notifier=notifier,

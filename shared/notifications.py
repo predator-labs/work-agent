@@ -2,10 +2,11 @@ import httpx
 
 
 class Notifier:
-    def __init__(self, ntfy_topic: str, slack_user_id: str, agent_url: str = "http://127.0.0.1:8000"):
+    def __init__(self, ntfy_topic: str, slack_user_id: str, agent_url: str = "http://127.0.0.1:8000", agent_secret: str = ""):
         self.ntfy_topic = ntfy_topic
         self.slack_user_id = slack_user_id
         self.agent_url = agent_url
+        self.agent_secret = agent_secret
 
     async def push(
         self,
@@ -64,6 +65,7 @@ class Notifier:
                     "label": "Approve",
                     "url": f"{self.agent_url}/approve/{task_id}",
                     "method": "POST",
+                    "headers": f"Authorization=Bearer {self.agent_secret}" if self.agent_secret else "",
                     "clear": "true",
                 },
                 {
@@ -71,6 +73,7 @@ class Notifier:
                     "label": "Reject",
                     "url": f"{self.agent_url}/reject/{task_id}",
                     "method": "POST",
+                    "headers": f"Authorization=Bearer {self.agent_secret}" if self.agent_secret else "",
                     "clear": "true",
                 },
             ],
@@ -91,6 +94,7 @@ class Notifier:
                     "label": "Approve",
                     "url": f"{self.agent_url}/approve/{task_id}",
                     "method": "POST",
+                    "headers": f"Authorization=Bearer {self.agent_secret}" if self.agent_secret else "",
                     "clear": "true",
                 },
                 {
@@ -98,6 +102,7 @@ class Notifier:
                     "label": "Reject",
                     "url": f"{self.agent_url}/reject/{task_id}",
                     "method": "POST",
+                    "headers": f"Authorization=Bearer {self.agent_secret}" if self.agent_secret else "",
                     "clear": "true",
                 },
             ]

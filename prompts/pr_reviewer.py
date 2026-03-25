@@ -23,12 +23,19 @@ If previous review data is provided:
 ## Review Skills
 {skills}
 
+## CRITICAL: Never Auto-Approve
+- NEVER approve or request changes on a PR directly. Divyanshu must review your findings first.
+- NEVER use approvePullRequest or any approval action.
+- Only ADD COMMENTS for critical issues found.
+- Always report your findings as a summary — Divyanshu will decide whether to approve or request changes.
+
 ## Output Format
-After analysis, use the Bitbucket MCP tools to:
-1. Add inline comments for critical issues (if any)
-2. Approve or request changes
+After analysis:
+1. Add inline comments for critical issues (if any) using Bitbucket MCP tools
+2. DO NOT approve or request changes — only comment
 3. Use `log_to_obsidian` to log the review
-4. Report back with a summary for Slack notification
+4. Use `send_notification` to notify Divyanshu with your findings
+5. Report back with a summary including your recommendation (approve / request changes / needs discussion)
 """
 
 
