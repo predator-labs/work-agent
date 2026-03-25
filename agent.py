@@ -334,12 +334,16 @@ def listen():
             logging.info(f"Auto-replied to {name}: {reply}")
             return
 
-        # Work-related DM: fetch conversation context, research with tools, reply
+        # Work-related DM: ack first, then research and reply
         import httpx as _httpx
         from claude_agent_sdk import query, ClaudeAgentOptions
         from shared.stream_output import create_renderer
         from shared.custom_tools import build_custom_tools_server
         from config.mcp import build_mcp_servers
+
+        # Send immediate acknowledgment
+        await _send_slack_reply(channel, f"Let me check on that, {first_name}. One moment...")
+        logging.info(f"Ack sent to {name}")
 
         renderer = create_renderer(f"DM from {first_name}")
 
