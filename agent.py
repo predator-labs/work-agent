@@ -175,7 +175,29 @@ def approve(task_id: str):
             typer.echo("Starting Phase 4: Create PR & Notify...")
             await deps["issue"].run_phase4(issue_id)
         elif approval["type"] == "slack_reply":
-            typer.echo("Slack reply will be sent.")
+            payload = approval.get("payload", {})
+            channel_id = payload.get("channel_id")
+            text = payload.get("text")
+            thread_ts = payload.get("thread_ts")
+            if channel_id and text:
+                import httpx
+                token = deps["settings"].slack_user_token or deps["settings"].slack_bot_token
+                data = {"channel": channel_id, "text": text}
+                if thread_ts:
+                    data["thread_ts"] = thread_ts
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        "https://slack.com/api/chat.postMessage",
+                        json=data,
+                        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                    )
+                    result = resp.json()
+                    if result.get("ok"):
+                        typer.echo(f"Slack reply sent to {channel_id}")
+                    else:
+                        typer.echo(f"Failed to send reply: {result.get('error')}")
+            else:
+                typer.echo("Slack reply approved but missing channel/text data.")
 
     asyncio.run(_approve())
 
@@ -231,8 +253,45 @@ def listen():
         logging.info(f"Mention triage: {len(result.get('pr_reviews', []))} PRs, {len(result.get('issues', []))} issues")
 
     async def on_dm(event):
-        """Handle DM events."""
-        logging.info(f"DM from {event.get('user', '?')}: {event.get('text', '')[:100]}")
+        """Handle DM events — quick reply for simple messages, full triage for complex ones."""
+        user_id = event.get("user", "?")
+        text = event.get("text", "")
+        channel = event.get("channel", "")
+        ts = event.get("ts", "")
+        logging.info(f"DM from {user_id}: {text[:100]}")
+
+        # For simple greetings/short messages, create a quick approval
+        simple_patterns = ["hello", "hi", "hey", "hellu", "helu", "sup", "yo", "ping", "good morning", "gm"]
+        if any(text.strip().lower().startswith(p) for p in simple_patterns):
+            # Look up user name
+            import httpx
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    "https://slack.com/api/users.info",
+                    params={"user": user_id},
+                    headers={"Authorization": f"Bearer {deps['settings'].slack_user_token}"},
+                )
+                user_data = resp.json()
+                name = user_data.get("user", {}).get("real_name", user_id)
+
+            draft = f"Hey {name.split()[0]}! What's up?"
+            task_id = f"slack-reply-{channel}-{ts}"
+            await deps["state"].add_pending_approval(
+                task_id=task_id,
+                approval_type="slack_reply",
+                payload={"channel_id": channel, "thread_ts": ts, "text": draft},
+                context={"from": name, "summary": text[:100]},
+            )
+            notifier = deps["slack"].notifier
+            await notifier.push_approval(
+                task_id=task_id,
+                action_summary=f"Reply to {name}: \"{text[:50]}\"",
+                details=f"Draft: {draft}",
+            )
+            logging.info(f"Quick reply drafted for {name}, awaiting approval")
+            return
+
+        # For anything else, run full triage
         result = await deps["slack"].run()
         logging.info(f"DM triage complete: {len(result.get('simple', []))} replies drafted")
 

@@ -224,8 +224,29 @@ async def _execute_approved_action(approval: dict) -> dict:
     elif approval["type"] == "pr_creation" and issue_id:
         return await issue_handler.run_phase4(issue_id)
     elif approval["type"] == "slack_reply":
-        # Slack reply approval — send the drafted message
-        return {"action": "slack_reply_sent", "payload": approval.get("payload", {})}
+        # Slack reply approval — actually send the drafted message
+        payload = approval.get("payload", {})
+        channel_id = payload.get("channel_id")
+        text = payload.get("text")
+        thread_ts = payload.get("thread_ts")
+        if channel_id and text:
+            import httpx
+            _settings = settings if settings is not None else Settings()
+            token = _settings.slack_user_token or _settings.slack_bot_token
+            data = {"channel": channel_id, "text": text}
+            if thread_ts:
+                data["thread_ts"] = thread_ts
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    "https://slack.com/api/chat.postMessage",
+                    json=data,
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                )
+                result = resp.json()
+                if result.get("ok"):
+                    return {"action": "slack_reply_sent", "channel": channel_id}
+                return {"action": "slack_reply_failed", "error": result.get("error")}
+        return {"action": "slack_reply_missing_data"}
 
     return {"action": "approved_no_followup"}
 

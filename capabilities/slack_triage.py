@@ -117,10 +117,11 @@ class SlackTriage:
                         },
                         context={"from": item.get("from", ""), "summary": item.get("summary", "")},
                     )
-                    await self.notifier.push(
-                        message=f"Reply to {item.get('from', 'someone')}: {item.get('summary', '')[:100]}",
-                        title="Approve Slack Reply?",
-                        priority="default",
+                    task_id = f"slack-reply-{item.get('channel_id', 'unknown')}-{item.get('thread_ts', 'latest')}"
+                    await self.notifier.push_approval(
+                        task_id=task_id,
+                        action_summary=f"Reply to {item.get('from', 'someone')}",
+                        details=f"Draft: {item['draft_reply'][:200]}",
                     )
                 except Exception:
                     pass
