@@ -80,7 +80,9 @@ def run_all(background: bool = typer.Option(False, "--bg", help="Run in backgrou
             # 2. Process any PR review requests found in Slack
             for pr in slack_result.get("pr_reviews", []):
                 typer.echo(f"Reviewing PR: {pr.get('url', 'unknown')}")
-                await deps["pr"].run(pr_url=pr["url"], slack_thread=pr.get("slack_thread"))
+                result = await deps["pr"].run(pr_url=pr["url"], slack_thread=pr.get("slack_thread"))
+                if result.get("skipped"):
+                    typer.echo(f"  Skipped: {result['reason']}")
 
             # 3. Daily plan
             await deps["planner"].plan_day(slack_results=str(slack_result))

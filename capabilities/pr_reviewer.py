@@ -51,6 +51,32 @@ class PRReviewer:
         )
         return servers
 
+    async def _check_pr_eligible(self, repo: str, pr_num: str) -> tuple[bool, str]:
+        """Check if a PR is eligible for review. Returns (eligible, reason)."""
+        if not self.settings:
+            return True, ""
+        import httpx
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"https://api.bitbucket.org/2.0/repositories/{self.settings.bitbucket_workspace}/{repo}/pullrequests/{pr_num}",
+                    auth=(self.settings.bitbucket_username, self.settings.bitbucket_password),
+                    timeout=15,
+                )
+                if resp.status_code != 200:
+                    return True, ""  # Can't check, proceed anyway
+                pr_data = resp.json()
+                state = pr_data.get("state", "").upper()
+                dest_branch = pr_data.get("destination", {}).get("branch", {}).get("name", "")
+
+                if state in ("MERGED", "DECLINED", "SUPERSEDED"):
+                    return False, f"PR is already {state.lower()}"
+                if dest_branch not in ("master", "main", "develop"):
+                    return False, f"PR targets '{dest_branch}' (not master/main)"
+                return True, ""
+        except Exception:
+            return True, ""  # Can't check, proceed anyway
+
     async def run(
         self,
         pr_url: str,
@@ -59,6 +85,13 @@ class PRReviewer:
         """Review a PR. Returns review results."""
         repo, pr_num = self.parse_pr_url(pr_url)
         pr_id = f"{repo}/{pr_num}"
+
+        # Pre-check: skip merged/declined PRs and non-master targets
+        eligible, reason = await self._check_pr_eligible(repo, pr_num)
+        if not eligible:
+            import logging
+            logging.info(f"Skipping PR {pr_id}: {reason}")
+            return {"skipped": True, "reason": reason}
 
         skill_loader = SkillLoader(self.skills_path)
         context_loader = ContextLoader(self.repos_path)
