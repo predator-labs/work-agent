@@ -60,12 +60,22 @@ def run_all(background: bool = typer.Option(False, "--bg", help="Run in backgrou
             # 1. Slack triage
             typer.echo("Running Slack triage...")
             slack_result = await deps["slack"].run()
-            raw = slack_result.get("raw_result", "")
-            count = sum(len(slack_result.get(k, [])) for k in ("simple", "pr_reviews", "issues", "informational"))
-            if count == 0 and raw:
-                typer.echo(f"Slack triage complete. See details below:\n{raw[:2000]}")
+            pr_count = len(slack_result.get("pr_reviews", []))
+            issue_count = len(slack_result.get("issues", []))
+            simple_count = len(slack_result.get("simple", []))
+            info_count = len(slack_result.get("informational", []))
+            total = pr_count + issue_count + simple_count + info_count
+
+            if total > 0:
+                typer.echo(f"Slack: {total} items — {pr_count} PRs, {issue_count} issues, {simple_count} replies, {info_count} FYI")
+                for pr in slack_result.get("pr_reviews", []):
+                    typer.echo(f"  PR: {pr.get('url', '?')} (from {pr.get('requester', '?')})")
+                for issue in slack_result.get("issues", []):
+                    typer.echo(f"  Issue [{issue.get('priority', '?')}]: {issue.get('description', '?')[:100]}")
+            elif slack_result.get("raw_result"):
+                typer.echo(f"Slack triage complete:\n{slack_result['raw_result'][:2000]}")
             else:
-                typer.echo(f"Slack: {count} messages triaged")
+                typer.echo("Slack: no actionable messages found")
 
             # 2. Process any PR review requests found in Slack
             for pr in slack_result.get("pr_reviews", []):

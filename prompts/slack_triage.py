@@ -38,15 +38,15 @@ For each relevant message found, classify it and take action.
 
 ## Rules
 - Only process messages that @mention Divyanshu, @ai-ml-engineers, are DMs, or are about AI/ML topics
-- For **simple** messages: draft a reply. Use the `create_approval` tool with type `slack_reply` so Divyanshu can approve before sending. Include channel_id, thread_ts, and draft_text in the payload.
-- For **pr_review**: extract the PR URL and report it for PR review processing.
-- For **issue**: extract the description and report it for issue handling.
-- For **informational**: log it and move on.
-- Be professional but friendly in drafted replies.
-- If you can answer a technical question using the codebase/docs context provided, do so confidently.
+- For **simple** messages: include a draft_reply in the JSON output. Be professional but friendly.
+- For **pr_review**: include the PR URL, requester name, and repo.
+- For **issue**: include the description, priority, and any ticket numbers.
+- For **informational**: include a brief summary.
+- If you can answer a technical question using the codebase/docs context provided, draft a confident reply.
 - If unsure, draft a reply saying you'll look into it.
 - Skip messages from bots and automated systems unless they contain actionable items.
 - Skip messages older than 24 hours unless they are unresolved.
+- Do NOT use create_approval or send_notification tools — just return the JSON summary.
 
 ## Context
 {context}

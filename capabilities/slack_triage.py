@@ -1,4 +1,5 @@
 import json as _json
+import re
 
 from claude_agent_sdk import query, ClaudeAgentOptions
 
@@ -9,71 +10,6 @@ from shared.skill_loader import SkillLoader
 from shared.context_loader import ContextLoader
 from shared.custom_tools import build_custom_tools_server
 from prompts.slack_triage import build_prompt
-
-# JSON schema for structured output from the triage agent
-_TRIAGE_OUTPUT_SCHEMA = {
-    "type": "json_schema",
-    "schema": {
-        "type": "object",
-        "properties": {
-            "simple": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "channel": {"type": "string"},
-                        "summary": {"type": "string"},
-                        "action_taken": {"type": "string"},
-                    },
-                },
-                "description": "Simple messages handled (greetings, status checks, factual questions)",
-            },
-            "pr_reviews": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "url": {"type": "string"},
-                        "requester": {"type": "string"},
-                        "repo": {"type": "string"},
-                        "slack_thread": {
-                            "type": "object",
-                            "properties": {
-                                "channel": {"type": "string"},
-                                "thread_ts": {"type": "string"},
-                            },
-                        },
-                    },
-                },
-                "description": "PR review requests found",
-            },
-            "issues": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "description": {"type": "string"},
-                        "source_channel": {"type": "string"},
-                        "priority": {"type": "string"},
-                    },
-                },
-                "description": "Bug reports, feature requests, task assignments",
-            },
-            "informational": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "channel": {"type": "string"},
-                        "summary": {"type": "string"},
-                    },
-                },
-                "description": "FYI messages, announcements — no action needed",
-            },
-        },
-        "required": ["simple", "pr_reviews", "issues", "informational"],
-    },
-}
 
 
 class SlackTriage:
@@ -98,8 +34,6 @@ class SlackTriage:
         self.settings = settings
 
     def build_mcp_servers(self) -> dict:
-        # Slack triage only needs agent-tools (which includes Slack API tools)
-        # No need to start bitbucket, circleci, codacy, rollbar etc.
         servers = {}
         servers["agent-tools"] = build_custom_tools_server(
             self.state, self.notifier,
@@ -116,7 +50,6 @@ class SlackTriage:
         skills_content = skill_loader.load_many(self.SKILLS)
         context = context_loader.load_root()
 
-        # Get last-read timestamps
         current_state = await self.state.read()
         last_read = current_state.get("slack", {}).get("last_read", {})
 
@@ -127,17 +60,22 @@ class SlackTriage:
         )
 
         task_prompt = (
-            f"Triage my Slack messages. Process channels in priority order: "
+            f"Triage my Slack messages. Process in priority order: "
             f"DMs first, then @mentions, then AI/ML topics. "
             f"Max 50 channels per run. "
-            f"Last-read timestamps: {last_read}\n"
-            f"For each message that needs a reply, use create_approval tool. "
-            f"For PR reviews, report the PR URL. "
-            f"For issues/features, report the description. "
-            f"Return a structured JSON summary with keys: simple, pr_reviews, issues, informational."
+            f"Last-read timestamps: {last_read}\n\n"
+            f"IMPORTANT: After triaging all messages, you MUST output your final summary as a single JSON object "
+            f"(no markdown, no extra text — ONLY valid JSON) with these keys:\n"
+            f'{{"simple": [...], "pr_reviews": [...], "issues": [...], "informational": [...]}}\n\n'
+            f"Each simple item: {{\"channel\": \"...\", \"channel_id\": \"...\", \"thread_ts\": \"...\", \"from\": \"...\", \"summary\": \"...\", \"draft_reply\": \"...\"}}\n"
+            f"Each pr_review item: {{\"url\": \"...\", \"requester\": \"...\", \"repo\": \"...\", \"slack_thread\": {{\"channel_id\": \"...\", \"thread_ts\": \"...\"}}}}\n"
+            f"Each issue item: {{\"description\": \"...\", \"source_channel\": \"...\", \"priority\": \"high|medium|low\", \"tickets\": [...]}}\n"
+            f"Each informational item: {{\"channel\": \"...\", \"summary\": \"...\"}}\n\n"
+            f"Do NOT use the create_approval tool — just return the JSON summary."
         )
 
         results = {"simple": [], "pr_reviews": [], "issues": [], "informational": []}
+        raw_output = ""
 
         async for message in query(
             prompt=task_prompt,
@@ -146,20 +84,66 @@ class SlackTriage:
                 mcp_servers=self.build_mcp_servers(),
                 allowed_tools=[
                     "mcp__agent-tools__*",
-                    "mcp__bitbucket__*",
-                    "mcp__atlassian__*",
                 ],
                 permission_mode="bypassPermissions",
                 max_turns=50,
-                output_format=_TRIAGE_OUTPUT_SCHEMA,
             ),
         ):
             if hasattr(message, "result"):
-                parsed = _parse_triage_result(message.result)
-                if parsed:
-                    results.update(parsed)
-                else:
-                    results["raw_result"] = message.result
+                raw_output = message.result
+
+        # Parse the raw output into structured results
+        parsed = _parse_triage_result(raw_output)
+        if parsed:
+            results.update(parsed)
+        else:
+            results["raw_result"] = raw_output
+
+        # Create approvals for simple messages that need replies
+        for item in results.get("simple", []):
+            if item.get("draft_reply") and item.get("channel_id"):
+                try:
+                    await self.state.add_pending_approval(
+                        task_id=f"slack-reply-{item.get('channel_id', 'unknown')}-{item.get('thread_ts', 'latest')}",
+                        approval_type="slack_reply",
+                        payload={
+                            "channel_id": item["channel_id"],
+                            "thread_ts": item.get("thread_ts"),
+                            "text": item["draft_reply"],
+                        },
+                        context={"from": item.get("from", ""), "summary": item.get("summary", "")},
+                    )
+                    await self.notifier.push(
+                        message=f"Reply to {item.get('from', 'someone')}: {item.get('summary', '')[:100]}",
+                        title="Approve Slack Reply?",
+                        priority="default",
+                    )
+                except Exception:
+                    pass
+
+        # Create approvals for PR reviews
+        for item in results.get("pr_reviews", []):
+            if item.get("url"):
+                try:
+                    await self.state.add_pending_approval(
+                        task_id=f"pr-review-{item['url'].split('/')[-1]}",
+                        approval_type="pr_review",
+                        payload={"url": item["url"], "slack_thread": item.get("slack_thread", {})},
+                        context={"requester": item.get("requester", ""), "repo": item.get("repo", "")},
+                    )
+                except Exception:
+                    pass
+
+        # Notify about issues
+        issue_count = len(results.get("issues", []))
+        pr_count = len(results.get("pr_reviews", []))
+        simple_count = len(results.get("simple", []))
+        if issue_count + pr_count + simple_count > 0:
+            await self.notifier.push(
+                message=f"{pr_count} PRs to review, {issue_count} issues, {simple_count} replies to approve",
+                title="Slack Triage Complete",
+                priority="high" if issue_count > 0 else "default",
+            )
 
         return results
 
@@ -169,35 +153,54 @@ def _parse_triage_result(raw: str) -> dict | None:
     if not raw:
         return None
 
-    # Try direct JSON parse (structured output_format should give us valid JSON)
+    # Try direct JSON parse
     try:
-        data = _json.loads(raw)
+        data = _json.loads(raw.strip())
         if isinstance(data, dict):
-            result = {}
-            for key in ("simple", "pr_reviews", "issues", "informational"):
-                if key in data and isinstance(data[key], list):
-                    result[key] = data[key]
-                else:
-                    result[key] = []
-            return result
+            return _extract_categories(data)
     except (ValueError, _json.JSONDecodeError):
         pass
 
     # Try to extract JSON from markdown code blocks
-    import re
     json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
     if json_match:
         try:
             data = _json.loads(json_match.group(1))
             if isinstance(data, dict):
-                result = {}
-                for key in ("simple", "pr_reviews", "issues", "informational"):
-                    if key in data and isinstance(data[key], list):
-                        result[key] = data[key]
-                    else:
-                        result[key] = []
-                return result
+                return _extract_categories(data)
         except (ValueError, _json.JSONDecodeError):
             pass
 
+    # Try to find JSON object anywhere in the text (last resort)
+    # Look for the outermost { ... } that contains our keys
+    brace_depth = 0
+    start = None
+    for i, ch in enumerate(raw):
+        if ch == '{':
+            if brace_depth == 0:
+                start = i
+            brace_depth += 1
+        elif ch == '}':
+            brace_depth -= 1
+            if brace_depth == 0 and start is not None:
+                candidate = raw[start:i + 1]
+                try:
+                    data = _json.loads(candidate)
+                    if isinstance(data, dict) and any(k in data for k in ("simple", "pr_reviews", "issues")):
+                        return _extract_categories(data)
+                except (ValueError, _json.JSONDecodeError):
+                    pass
+                start = None
+
     return None
+
+
+def _extract_categories(data: dict) -> dict:
+    """Extract the four triage categories from a parsed dict."""
+    result = {}
+    for key in ("simple", "pr_reviews", "issues", "informational"):
+        if key in data and isinstance(data[key], list):
+            result[key] = data[key]
+        else:
+            result[key] = []
+    return result
