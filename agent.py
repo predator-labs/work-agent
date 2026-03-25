@@ -287,6 +287,17 @@ def listen():
     def _is_casual_message(text: str) -> bool:
         """Check if a message is casual/conversational (not work-related)."""
         cleaned = text.strip().lower()
+
+        # Work keywords — if ANY of these are present, it's NOT casual
+        work_keywords = [
+            "ticket", "pr ", "pull request", "bug", "fix", "deploy", "release",
+            "jira", "es-", "eng-", "issue", "review", "status", "check",
+            "pipeline", "production", "staging", "error", "rollbar", "test",
+            "merge", "branch", "commit", "bitbucket", "circleci", "sprint",
+        ]
+        if any(w in cleaned for w in work_keywords):
+            return False
+
         # Pure greetings
         greetings = ["hello", "hi", "hey", "hellu", "helu", "sup", "yo", "ping", "good morning", "gm"]
         for g in greetings:
@@ -294,16 +305,25 @@ def listen():
                 remaining = cleaned[len(g):].strip(" !.,;:\n")
                 if len(remaining) < 15 and "?" not in remaining:
                     return True
-        # Casual questions with no work keywords
+
+        # Casual/banter patterns
         casual_patterns = [
             "how are you", "how r u", "how you doing", "what's up", "whats up",
             "wassup", "kaise ho", "kya haal", "kuch aur", "aur bata",
+            "kya karoge", "chod do", "leke", "haha", "lol", "lmao",
+            "bhai", "yaar", "dude", "bro", "chal", "theek hai",
+            "good night", "bye", "see you", "ttyl", "take care",
+            "thanks", "thank you", "shukriya", "dhanyavaad",
+            "happy birthday", "congratulations", "congrats",
+            "what did u do", "what are you doing", "kya kar raha",
         ]
         if any(p in cleaned for p in casual_patterns):
-            work_keywords = ["ticket", "pr ", "pull request", "bug", "fix", "deploy", "release",
-                           "jira", "es-", "eng-", "issue", "review", "status", "check"]
-            if not any(w in cleaned for w in work_keywords):
-                return True
+            return True
+
+        # Short messages without question marks are likely casual
+        if len(cleaned) < 30 and "?" not in cleaned:
+            return True
+
         return False
 
     async def on_dm(event):
@@ -338,7 +358,23 @@ def listen():
 
         # Casual messages: auto-reply instantly
         if _is_casual_message(text):
-            reply = f"Hey {first_name}! Doing well, thanks for asking! How can I help you?"
+            # Use Claude for a natural casual reply (no tools, instant)
+            from claude_agent_sdk import query as _q, ClaudeAgentOptions as _opts
+            casual_system = (
+                f"You are Divyanshu Sharma replying to {name} on Slack DM. "
+                f"This is casual conversation — reply naturally and briefly.\n"
+                f"RULES: Use 'aap' never 'tu/tum' in Hindi. Be warm but professional. "
+                f"Output ONLY the reply text. No preamble."
+            )
+            casual_reply = ""
+            async for m in _q(
+                prompt=f"Casual DM from {name}: \"{text}\"",
+                options=_opts(system_prompt={"type": "preset", "preset": "claude_code", "append": casual_system},
+                             allowed_tools=[], permission_mode="bypassPermissions", max_turns=1),
+            ):
+                if hasattr(m, "result") and m.result:
+                    casual_reply = m.result.strip()
+            reply = casual_reply or f"Hey {first_name}! Bataiye, kya help chahiye?"
             await _send_slack_reply(channel, reply)
             logging.info(f"Auto-replied to {name}: {reply}")
             return
@@ -414,7 +450,12 @@ def listen():
             f"- When replying in Hindi/Hinglish, ALWAYS use 'aap' (respectful), NEVER use 'tu' or 'tum'.\n"
             f"- Address colleagues with respect — they are your peers and seniors.\n"
             f"- Match the language of the incoming message (English reply for English, Hinglish for Hindi).\n"
-            f"- Be warm and helpful but never overly casual or disrespectful."
+            f"- Be warm and helpful but never overly casual or disrespectful.\n\n"
+            f"ACCURACY:\n"
+            f"- NEVER present backlog/unstarted tickets as 'work done today'.\n"
+            f"- Jira ticket status tells you the truth: Backlog = not started, In Progress = working on it, Done = completed.\n"
+            f"- If asked 'what did you do today', only mention tickets that are In Progress or Done (recently updated).\n"
+            f"- Do NOT make up or assume work that wasn't done."
         )
 
         draft_reply = ""
