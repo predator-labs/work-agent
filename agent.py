@@ -334,40 +334,37 @@ def listen():
             logging.info(f"Auto-replied to {name}: {reply}")
             return
 
-        # Work-related DM: use Claude to draft a targeted reply for THIS specific message
+        # Work-related DM: use Claude to draft a reply, then send it directly
         from claude_agent_sdk import query, ClaudeAgentOptions
         from shared.stream_output import create_renderer
-        from shared.custom_tools import build_custom_tools_server
 
         renderer = create_renderer(f"DM from {first_name}")
         system = (
             f"You are Divyanshu Sharma, AI/ML engineer at Docyt. "
-            f"{name} ({user_id}) sent you a DM. Draft a professional, helpful reply.\n"
-            f"Use slack_send_message to send the reply to channel {channel}.\n"
-            f"Keep it concise and natural — like how a real engineer would reply on Slack."
+            f"{name} sent you a DM. Draft a professional, helpful reply.\n"
+            f"IMPORTANT: Just output the reply text — nothing else. No markdown, no quotes, no 'Here's a reply:'. "
+            f"Just the message as you would type it in Slack."
         )
 
-        servers = {
-            "agent-tools": build_custom_tools_server(
-                deps["state"], deps["slack"].notifier,
-                slack_user_token=deps["settings"].slack_user_token,
-                slack_bot_token=deps["settings"].slack_bot_token,
-            ),
-        }
-
+        draft_reply = ""
         async for message in query(
             prompt=f"Reply to this DM from {name}:\n\"{text}\"",
             options=ClaudeAgentOptions(
                 system_prompt={"type": "preset", "preset": "claude_code", "append": system},
-                mcp_servers=servers,
-                allowed_tools=["mcp__agent-tools__*"],
+                allowed_tools=[],
                 permission_mode="bypassPermissions",
-                max_turns=5,
+                max_turns=1,
             ),
         ):
             renderer.render(message)
+            if hasattr(message, "result") and message.result:
+                draft_reply = message.result.strip()
 
-        logging.info(f"Replied to {name}'s DM")
+        if draft_reply:
+            await _send_slack_reply(channel, draft_reply)
+            logging.info(f"Replied to {name}: {draft_reply[:100]}")
+        else:
+            logging.warning(f"No reply generated for {name}'s DM")
 
     async def on_pr_link(event):
         """Handle PR links shared in channels."""
