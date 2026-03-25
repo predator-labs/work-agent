@@ -97,7 +97,8 @@ class EventListener:
 
         event = req.payload.get("event", {})
         event_type = event.get("type", "")
-        event_id = req.payload.get("event_id", event.get("ts", ""))
+        # Use channel+ts as dedup key (more reliable than event_id for duplicate deliveries)
+        event_id = f"{event.get('channel', '')}:{event.get('ts', '')}:{event.get('user', '')}"
 
         if self._is_duplicate(event_id):
             return

@@ -252,49 +252,122 @@ def listen():
         result = await deps["slack"].run()
         logging.info(f"Mention triage: {len(result.get('pr_reviews', []))} PRs, {len(result.get('issues', []))} issues")
 
+    # Track recently handled events to prevent duplicates
+    _handled_events: dict[str, float] = {}
+
+    async def _get_user_name(user_id: str) -> str:
+        """Look up Slack user's first name."""
+        import httpx
+        token = deps["settings"].slack_user_token or deps["settings"].slack_bot_token
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://slack.com/api/users.info",
+                params={"user": user_id},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            data = resp.json()
+            return data.get("user", {}).get("real_name", user_id)
+
+    async def _send_slack_reply(channel: str, text: str, thread_ts: str = ""):
+        """Send a Slack message."""
+        import httpx
+        token = deps["settings"].slack_user_token or deps["settings"].slack_bot_token
+        data = {"channel": channel, "text": text}
+        if thread_ts:
+            data["thread_ts"] = thread_ts
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                "https://slack.com/api/chat.postMessage",
+                json=data,
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            )
+
+    def _is_casual_message(text: str) -> bool:
+        """Check if a message is casual/conversational (not work-related)."""
+        cleaned = text.strip().lower()
+        # Pure greetings
+        greetings = ["hello", "hi", "hey", "hellu", "helu", "sup", "yo", "ping", "good morning", "gm"]
+        for g in greetings:
+            if cleaned.startswith(g):
+                remaining = cleaned[len(g):].strip(" !.,;:\n")
+                if len(remaining) < 15 and "?" not in remaining:
+                    return True
+        # Casual questions with no work keywords
+        casual_patterns = [
+            "how are you", "how r u", "how you doing", "what's up", "whats up",
+            "wassup", "kaise ho", "kya haal", "kuch aur", "aur bata",
+        ]
+        if any(p in cleaned for p in casual_patterns):
+            work_keywords = ["ticket", "pr ", "pull request", "bug", "fix", "deploy", "release",
+                           "jira", "es-", "eng-", "issue", "review", "status", "check"]
+            if not any(w in cleaned for w in work_keywords):
+                return True
+        return False
+
     async def on_dm(event):
-        """Handle DM events — quick reply for simple messages, full triage for complex ones."""
+        """Handle DM events — instant reply for casual, targeted response for work messages."""
+        import time
         user_id = event.get("user", "?")
         text = event.get("text", "")
         channel = event.get("channel", "")
         ts = event.get("ts", "")
+
+        # Deduplicate: skip if we handled this exact message recently
+        event_key = f"{channel}:{ts}"
+        now = time.time()
+        if event_key in _handled_events and now - _handled_events[event_key] < 10:
+            return
+        _handled_events[event_key] = now
+        # Clean old entries
+        for k in list(_handled_events):
+            if now - _handled_events[k] > 60:
+                del _handled_events[k]
+
         logging.info(f"DM from {user_id}: {text[:100]}")
+        name = await _get_user_name(user_id)
+        first_name = name.split()[0]
 
-        # For simple greetings ONLY (no question or extra content), reply directly
-        simple_patterns = ["hello", "hi", "hey", "hellu", "helu", "sup", "yo", "ping", "good morning", "gm"]
-        cleaned = text.strip().lower()
-        # Strip greeting prefix to check if there's real content after it
-        remaining = cleaned
-        for p in simple_patterns:
-            if cleaned.startswith(p):
-                remaining = cleaned[len(p):].strip(" !.,;:\n")
-                break
-        is_pure_greeting = any(cleaned.startswith(p) for p in simple_patterns) and len(remaining) < 15 and "?" not in text
-        if is_pure_greeting:
-            import httpx
-            token = deps["settings"].slack_user_token or deps["settings"].slack_bot_token
-            # Look up user name
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    "https://slack.com/api/users.info",
-                    params={"user": user_id},
-                    headers={"Authorization": f"Bearer {token}"},
-                )
-                user_data = resp.json()
-                name = user_data.get("user", {}).get("real_name", user_id)
-
-                reply = f"Hey {name.split()[0]}! What's up?"
-                await client.post(
-                    "https://slack.com/api/chat.postMessage",
-                    json={"channel": channel, "text": reply},
-                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-                )
+        # Casual messages: auto-reply instantly
+        if _is_casual_message(text):
+            reply = f"Hey {first_name}! I'm doing well, thanks! What can I help you with?"
+            await _send_slack_reply(channel, reply)
             logging.info(f"Auto-replied to {name}: {reply}")
             return
 
-        # For anything else, run full triage
-        result = await deps["slack"].run()
-        logging.info(f"DM triage complete: {len(result.get('simple', []))} replies drafted")
+        # Work-related DM: use Claude to draft a targeted reply for THIS specific message
+        from claude_agent_sdk import query, ClaudeAgentOptions
+        from shared.stream_output import create_renderer
+        from shared.custom_tools import build_custom_tools_server
+
+        renderer = create_renderer(f"DM from {first_name}")
+        system = (
+            f"You are Divyanshu Sharma, AI/ML engineer at Docyt. "
+            f"{name} ({user_id}) sent you a DM. Draft a professional, helpful reply.\n"
+            f"Use slack_send_message to send the reply to channel {channel}.\n"
+            f"Keep it concise and natural — like how a real engineer would reply on Slack."
+        )
+
+        servers = {
+            "agent-tools": build_custom_tools_server(
+                deps["state"], deps["slack"].notifier,
+                slack_user_token=deps["settings"].slack_user_token,
+                slack_bot_token=deps["settings"].slack_bot_token,
+            ),
+        }
+
+        async for message in query(
+            prompt=f"Reply to this DM from {name}:\n\"{text}\"",
+            options=ClaudeAgentOptions(
+                system_prompt={"type": "preset", "preset": "claude_code", "append": system},
+                mcp_servers=servers,
+                allowed_tools=["mcp__agent-tools__*"],
+                permission_mode="bypassPermissions",
+                max_turns=5,
+            ),
+        ):
+            renderer.render(message)
+
+        logging.info(f"Replied to {name}'s DM")
 
     async def on_pr_link(event):
         """Handle PR links shared in channels."""
