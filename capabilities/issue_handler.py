@@ -8,6 +8,7 @@ from shared.notifications import Notifier
 from shared.skill_loader import SkillLoader
 from shared.context_loader import ContextLoader
 from shared.custom_tools import build_custom_tools_server
+from shared.stream_output import create_renderer
 from prompts.issue_handler import (
     build_phase1_prompt,
     build_phase2_prompt,
@@ -97,6 +98,8 @@ class IssueHandler:
         )
 
         result = {}
+        renderer = create_renderer("Phase 1: Investigate")
+
         async for message in query(
             prompt=task_prompt,
             options=ClaudeAgentOptions(
@@ -116,6 +119,7 @@ class IssueHandler:
                 cwd=self.repos_path,
             ),
         ):
+            renderer.render(message)
             if hasattr(message, "result"):
                 result["raw_result"] = message.result
 
@@ -148,6 +152,8 @@ class IssueHandler:
         )
 
         result = {}
+        renderer = create_renderer("Phase 2: Plan")
+
         async for message in query(
             prompt=task_prompt,
             options=ClaudeAgentOptions(
@@ -162,6 +168,7 @@ class IssueHandler:
                 cwd=self.repos_path,
             ),
         ):
+            renderer.render(message)
             if hasattr(message, "result"):
                 result["raw_result"] = message.result
 
@@ -197,6 +204,8 @@ class IssueHandler:
         )
 
         result = {}
+        renderer = create_renderer("Phase 3: Implement")
+
         async for message in query(
             prompt=task_prompt,
             options=ClaudeAgentOptions(
@@ -212,6 +221,7 @@ class IssueHandler:
                 cwd=self.repos_path,
             ),
         ):
+            renderer.render(message)
             if hasattr(message, "result"):
                 result["raw_result"] = message.result
 
@@ -239,6 +249,8 @@ class IssueHandler:
         )
 
         result = {}
+        renderer = create_renderer("Phase 4: PR & Notify")
+
         async for message in query(
             prompt=task_prompt,
             options=ClaudeAgentOptions(
@@ -254,6 +266,7 @@ class IssueHandler:
                 cwd=self.repos_path,
             ),
         ):
+            renderer.render(message)
             if hasattr(message, "result"):
                 result["raw_result"] = message.result
 

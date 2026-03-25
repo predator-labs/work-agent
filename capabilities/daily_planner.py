@@ -78,6 +78,9 @@ class DailyPlanner:
         )
 
         result = {}
+        from shared.stream_output import create_renderer
+        renderer = create_renderer("Daily Plan")
+
         async for message in query(
             prompt=task_prompt,
             options=ClaudeAgentOptions(
@@ -90,6 +93,7 @@ class DailyPlanner:
                 max_turns=15,
             ),
         ):
+            renderer.render(message)
             if hasattr(message, "result"):
                 result["raw_result"] = message.result
 
@@ -117,6 +121,8 @@ class DailyPlanner:
         )
 
         result = {}
+        renderer = create_renderer("End of Day")
+
         async for message in query(
             prompt=task_prompt,
             options=ClaudeAgentOptions(
@@ -130,6 +136,7 @@ class DailyPlanner:
                 max_turns=20,
             ),
         ):
+            renderer.render(message)
             if hasattr(message, "result"):
                 result["raw_result"] = message.result
 

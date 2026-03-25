@@ -77,6 +77,9 @@ class SlackTriage:
         results = {"simple": [], "pr_reviews": [], "issues": [], "informational": []}
         raw_output = ""
 
+        from shared.stream_output import create_renderer
+        renderer = create_renderer("Slack Triage")
+
         async for message in query(
             prompt=task_prompt,
             options=ClaudeAgentOptions(
@@ -89,6 +92,7 @@ class SlackTriage:
                 max_turns=50,
             ),
         ):
+            renderer.render(message)
             if hasattr(message, "result"):
                 raw_output = message.result
 

@@ -102,6 +102,10 @@ class PRReviewer:
             )
 
         result = {}
+
+        from shared.stream_output import create_renderer
+        renderer = create_renderer(f"PR Review #{pr_num}")
+
         async for message in query(
             prompt=task_prompt,
             options=ClaudeAgentOptions(
@@ -117,6 +121,7 @@ class PRReviewer:
                 max_turns=30,
             ),
         ):
+            renderer.render(message)
             if hasattr(message, "result"):
                 result["raw_result"] = message.result
 
