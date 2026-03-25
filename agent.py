@@ -326,6 +326,13 @@ def listen():
                 del _handled_events[k]
 
         logging.info(f"DM from {user_id}: {text[:100]}")
+
+        # Ignore junk: single characters, empty messages, random keystrokes
+        cleaned_text = text.strip()
+        if len(cleaned_text) < 3:
+            logging.info(f"Ignoring short message: \"{cleaned_text}\"")
+            return
+
         name = await _get_user_name(user_id)
         first_name = name.split()[0]
 
