@@ -334,13 +334,36 @@ def listen():
             logging.info(f"Auto-replied to {name}: {reply}")
             return
 
-        # Work-related DM: use Claude with tools to research and reply
+        # Work-related DM: fetch conversation context, research with tools, reply
+        import httpx as _httpx
         from claude_agent_sdk import query, ClaudeAgentOptions
         from shared.stream_output import create_renderer
         from shared.custom_tools import build_custom_tools_server
         from config.mcp import build_mcp_servers
 
         renderer = create_renderer(f"DM from {first_name}")
+
+        # Fetch recent conversation history for context
+        token = deps["settings"].slack_user_token or deps["settings"].slack_bot_token
+        conversation_context = ""
+        try:
+            async with _httpx.AsyncClient() as client:
+                resp = await client.get(
+                    "https://slack.com/api/conversations.history",
+                    params={"channel": channel, "limit": "10"},
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=10,
+                )
+                history = resp.json()
+                if history.get("ok"):
+                    messages = history.get("messages", [])
+                    lines = []
+                    for m in reversed(messages):
+                        sender = "Divyanshu" if m.get("user") == deps["settings"].slack_user_id else first_name
+                        lines.append(f"{sender}: {m.get('text', '')}")
+                    conversation_context = "\n".join(lines)
+        except Exception:
+            pass
 
         # Build MCP servers for Jira, Bitbucket etc.
         servers = {}
@@ -354,19 +377,25 @@ def listen():
 
         system = (
             f"You are Divyanshu Sharma, AI/ML engineer at Docyt. "
-            f"{name} sent you a DM. Research the answer if needed, then reply.\n"
+            f"{name} is messaging you on Slack DM.\n"
             f"Divyanshu's Jira email: {deps['settings'].jira_email}\n\n"
+            f"CONVERSATION HISTORY (most recent at bottom):\n{conversation_context}\n\n"
             f"RULES:\n"
-            f"- If the question needs real data (Jira tickets, PR status, etc.), use the available tools to look it up FIRST.\n"
-            f"- After researching, output ONLY the final reply text to send on Slack.\n"
-            f"- Keep it concise and natural — like how a real engineer would reply on Slack.\n"
-            f"- Do NOT use slack_send_message — just output the reply text.\n"
-            f"- No markdown formatting, no quotes, no preamble. Just the message."
+            f"- Read the conversation history to understand context.\n"
+            f"- If the question needs real data (Jira tickets, PR status, etc.), "
+            f"use slack_search_messages or Jira/Bitbucket MCP tools to look it up.\n"
+            f"- For Jira queries, use searchJiraIssuesUsingJql with JQL like: "
+            f"'assignee = \"{deps['settings'].jira_email}\" ORDER BY updated DESC'\n"
+            f"- Your FINAL output must be ONLY the reply text to send on Slack.\n"
+            f"- Keep it concise and natural — like how a real engineer would reply.\n"
+            f"- Do NOT use slack_send_message tool. Just output the text.\n"
+            f"- No markdown, no quotes, no preamble. Just the message."
         )
 
         draft_reply = ""
+        last_text = ""
         async for message in query(
-            prompt=f"Reply to this DM from {name}:\n\"{text}\"",
+            prompt=f"Reply to {name}'s latest message:\n\"{text}\"",
             options=ClaudeAgentOptions(
                 system_prompt={"type": "preset", "preset": "claude_code", "append": system},
                 mcp_servers=servers,
@@ -382,12 +411,26 @@ def listen():
             renderer.render(message)
             if hasattr(message, "result") and message.result:
                 draft_reply = message.result.strip()
+            # Also capture text blocks from assistant messages as fallback
+            if hasattr(message, "content"):
+                for block in message.content:
+                    if hasattr(block, "text") and block.text.strip():
+                        last_text = block.text.strip()
 
-        if draft_reply:
-            await _send_slack_reply(channel, draft_reply)
-            logging.info(f"Replied to {name}: {draft_reply[:100]}")
+        # Use draft_reply if available, otherwise fall back to last text output
+        reply = draft_reply or last_text
+        if reply:
+            # Clean up: remove any "Here's the reply:" preamble
+            for prefix in ["Here's the reply:", "Here is the reply:", "Reply:", "Draft:"]:
+                if reply.startswith(prefix):
+                    reply = reply[len(prefix):].strip()
+            await _send_slack_reply(channel, reply)
+            logging.info(f"Replied to {name}: {reply[:100]}")
         else:
-            logging.warning(f"No reply generated for {name}'s DM")
+            # Fallback: at least acknowledge
+            fallback = f"Hey {first_name}, let me look into this and get back to you shortly."
+            await _send_slack_reply(channel, fallback)
+            logging.info(f"Sent fallback reply to {name}")
 
     async def on_pr_link(event):
         """Handle PR links shared in channels."""
