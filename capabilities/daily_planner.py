@@ -44,11 +44,17 @@ class DailyPlanner:
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         return Path(self.vault_path) / "daily-logs" / f"{today}.md"
 
-    def build_mcp_servers(self) -> dict:
+    def build_mcp_servers(self, include_external: bool = False) -> dict:
+        # Only start heavy MCP servers when explicitly needed
         servers = {}
-        if self.settings:
-            servers = build_mcp_servers(self.settings)
-        servers["agent-tools"] = build_custom_tools_server(self.state, self.notifier)
+        if include_external and self.settings:
+            from config.mcp import build_mcp_servers as _build
+            servers = _build(self.settings)
+        servers["agent-tools"] = build_custom_tools_server(
+            self.state, self.notifier,
+            slack_user_token=self.settings.slack_user_token if self.settings else "",
+            slack_bot_token=self.settings.slack_bot_token if self.settings else "",
+        )
         return servers
 
     async def plan_day(self, slack_results: str = "") -> dict:
@@ -80,11 +86,9 @@ class DailyPlanner:
                 mcp_servers=self.build_mcp_servers(),
                 allowed_tools=[
                     "mcp__agent-tools__*",
-                    "mcp__atlassian__*",
-                    "mcp__bitbucket__*",
                 ],
                 permission_mode="bypassPermissions",
-                max_turns=30,
+                max_turns=20,
             ),
         ):
             if hasattr(message, "result"):

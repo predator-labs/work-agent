@@ -47,7 +47,11 @@ class IssueHandler:
         servers = {}
         if self.settings:
             servers = build_mcp_servers(self.settings)
-        servers["agent-tools"] = build_custom_tools_server(self.state, self.notifier)
+        servers["agent-tools"] = build_custom_tools_server(
+            self.state, self.notifier,
+            slack_user_token=self.settings.slack_user_token if self.settings else "",
+            slack_bot_token=self.settings.slack_bot_token if self.settings else "",
+        )
         return servers
 
     async def create_issue(self, description: str, source: dict) -> str:

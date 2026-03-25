@@ -5,16 +5,8 @@ def build_mcp_servers(settings: Settings) -> dict:
     """Build MCP server configuration dict for Claude Agent SDK."""
     servers = {}
 
-    # Slack (stdio — official MCP server with bot token)
-    if settings.slack_bot_token:
-        servers["slack"] = {
-            "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-slack"],
-            "env": {
-                "SLACK_BOT_TOKEN": settings.slack_bot_token,
-                "SLACK_TEAM_ID": settings.slack_team_id,
-            },
-        }
+    # Slack: handled by custom tools in shared/custom_tools.py
+    # (the @modelcontextprotocol/server-slack MCP is too limited — no DMs, no search)
 
     # Bitbucket
     if settings.bitbucket_username:
