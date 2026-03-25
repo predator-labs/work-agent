@@ -260,9 +260,17 @@ def listen():
         ts = event.get("ts", "")
         logging.info(f"DM from {user_id}: {text[:100]}")
 
-        # For simple greetings/short messages, reply directly
+        # For simple greetings ONLY (no question or extra content), reply directly
         simple_patterns = ["hello", "hi", "hey", "hellu", "helu", "sup", "yo", "ping", "good morning", "gm"]
-        if any(text.strip().lower().startswith(p) for p in simple_patterns):
+        cleaned = text.strip().lower()
+        # Strip greeting prefix to check if there's real content after it
+        remaining = cleaned
+        for p in simple_patterns:
+            if cleaned.startswith(p):
+                remaining = cleaned[len(p):].strip(" !.,;:\n")
+                break
+        is_pure_greeting = any(cleaned.startswith(p) for p in simple_patterns) and len(remaining) < 15 and "?" not in text
+        if is_pure_greeting:
             import httpx
             token = deps["settings"].slack_user_token or deps["settings"].slack_bot_token
             # Look up user name
