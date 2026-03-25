@@ -334,16 +334,34 @@ def listen():
             logging.info(f"Auto-replied to {name}: {reply}")
             return
 
-        # Work-related DM: use Claude to draft a reply, then send it directly
+        # Work-related DM: use Claude with tools to research and reply
         from claude_agent_sdk import query, ClaudeAgentOptions
         from shared.stream_output import create_renderer
+        from shared.custom_tools import build_custom_tools_server
+        from config.mcp import build_mcp_servers
 
         renderer = create_renderer(f"DM from {first_name}")
+
+        # Build MCP servers for Jira, Bitbucket etc.
+        servers = {}
+        if deps["settings"]:
+            servers = build_mcp_servers(deps["settings"])
+        servers["agent-tools"] = build_custom_tools_server(
+            deps["state"], deps["slack"].notifier,
+            slack_user_token=deps["settings"].slack_user_token,
+            slack_bot_token=deps["settings"].slack_bot_token,
+        )
+
         system = (
             f"You are Divyanshu Sharma, AI/ML engineer at Docyt. "
-            f"{name} sent you a DM. Draft a professional, helpful reply.\n"
-            f"IMPORTANT: Just output the reply text — nothing else. No markdown, no quotes, no 'Here's a reply:'. "
-            f"Just the message as you would type it in Slack."
+            f"{name} sent you a DM. Research the answer if needed, then reply.\n"
+            f"Divyanshu's Jira email: {deps['settings'].jira_email}\n\n"
+            f"RULES:\n"
+            f"- If the question needs real data (Jira tickets, PR status, etc.), use the available tools to look it up FIRST.\n"
+            f"- After researching, output ONLY the final reply text to send on Slack.\n"
+            f"- Keep it concise and natural — like how a real engineer would reply on Slack.\n"
+            f"- Do NOT use slack_send_message — just output the reply text.\n"
+            f"- No markdown formatting, no quotes, no preamble. Just the message."
         )
 
         draft_reply = ""
@@ -351,9 +369,14 @@ def listen():
             prompt=f"Reply to this DM from {name}:\n\"{text}\"",
             options=ClaudeAgentOptions(
                 system_prompt={"type": "preset", "preset": "claude_code", "append": system},
-                allowed_tools=[],
+                mcp_servers=servers,
+                allowed_tools=[
+                    "mcp__agent-tools__*",
+                    "mcp__atlassian__*",
+                    "mcp__bitbucket__*",
+                ],
                 permission_mode="bypassPermissions",
-                max_turns=1,
+                max_turns=10,
             ),
         ):
             renderer.render(message)
