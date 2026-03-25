@@ -158,7 +158,7 @@ class EventListener:
         jql = f'assignee = "{self.settings.jira_email}" AND updated >= -5m ORDER BY updated DESC'
         async with httpx.AsyncClient() as client:
             resp = await client.get(
-                f"{self.settings.jira_url}/rest/api/3/search",
+                f"{self.settings.jira_url}/rest/api/3/search/jql",
                 params={"jql": jql, "maxResults": 10, "fields": "summary,status,priority,updated"},
                 auth=(self.settings.jira_username, self.settings.jira_api_token),
                 timeout=30,
